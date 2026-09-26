@@ -1,42 +1,4 @@
-const { test, expect } = require('@playwright/test');
-const fs = require('fs');
-const path = require('path');
-
-const repoRoot = path.join(__dirname, '..');
-
-test('manifest exists and is valid MV3 JSON', () => {
-  const manifestPath = path.join(repoRoot, 'manifest.json');
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-
-  expect(manifest).toBeTruthy();
-  expect(manifest.manifest_version).toBe(3);
-  expect(manifest.name).toBeTruthy();
-  expect(manifest.action.default_popup).toContain('popup.html');
-});
-
-test('popup loads and contains expected controls', async ({ page }) => {
-  const popupHtmlPath = path.join(repoRoot, 'popup', 'popup.html');
-  const fileUrl = 'file://' + popupHtmlPath;
-
-  await page.goto(fileUrl);
-
-  await expect(page.locator('h1')).toContainText('Live Try-On Pro');
-  await expect(page.locator('#toggleCameraBtn')).toBeVisible();
-  await expect(page.locator('#captureBtn')).toBeVisible();
-  await expect(page.locator('#recordBtn')).toBeVisible();
-  await expect(page.locator('[data-garment="hoodie"]')).toBeVisible();
-  await expect(page.locator('[data-garment="shirt"]')).toBeVisible();
-});
-
-test('controls can be interacted with without crashing', async ({ page }) => {
-  const popupHtmlPath = path.join(repoRoot, 'popup', 'popup.html');
-  await page.goto('file://' + popupHtmlPath);
-
-  await page.locator('[data-garment="shirt"]').click();
-  await page.locator('#motionRange').fill('82');
-  await page.locator('#windRange').fill('55');
-  await page.locator('#brightnessRange').fill('40');
-
-  const status = await page.locator('#statusBadge').textContent();
-  expect(status).toBeTruthy();
-});
+const { test, expect, chromium } = require('@playwright/test'); const path = require('path'); const fs = require('fs');
+const root = path.join(__dirname, '..');
+test('manifest and popup launcher are valid', async ({ page }) => { const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8')); expect(manifest.manifest_version).toBe(3); await page.goto(`file://${path.join(root,'popup/popup.html')}`); await expect(page.locator('#openTryOnBtn')).toBeVisible(); await expect(page.locator('body')).toHaveCSS('width','360px'); });
+test('camera page starts a fake video stream', async () => { const context = await chromium.launchPersistentContext('', { headless:true, args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream'] }); const page=await context.newPage(); await page.goto(`file://${path.join(root,'camera/camera.html')}`); await page.evaluate(async () => { const original=navigator.mediaDevices.getUserMedia; navigator.mediaDevices.getUserMedia=async()=>{ const c=document.createElement('canvas'); c.width=320;c.height=240; return c.captureStream(30); }; window.__originalGetUserMedia=original; }); await page.reload(); await expect.poll(() => page.locator('#statusBadge').textContent()).toContain('Live'); await expect.poll(() => page.locator('#userVideo').evaluate(v => v.srcObject instanceof MediaStream)).toBe(true); await context.close(); });
