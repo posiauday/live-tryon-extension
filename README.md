@@ -17,6 +17,7 @@ This project is a functional prototype and demo foundation for a future AI-power
 ## Tips
 - Stand 1.5-2 m back so shoulders and hips are visible.
 - Best input: a front-facing photo of a top/dress on a plain or transparent background. Use "Fit as" to pick the garment shape.
+- The launcher opens the try-on in its own popup window (a toolbar popup closes when you drag a file in).
 - Debug: open camera/camera.html?nomodels to skip loading the ML models.
 
 ## Limitations
