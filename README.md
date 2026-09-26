@@ -15,8 +15,11 @@ WebRTC and the edited video comes back with the garment worn and the fabric movi
 Chrome does not let extensions run on `chrome://` pages or the Web Store. There the icon shows a red **!**; its tooltip
 explains why. The extension never opens a window on its own.
 
-Dragging from a shop needs no extra permission when Chrome hands over the image file; otherwise the panel asks once for
-access to that image's site.
+Most shop images are read directly from the page. If a shop's image server blocks that, the AI session card shows an
+**Allow dragging from all sites** button (one click, one Chrome prompt); then drop again.
+
+Why the drop is caught on the page: Chrome does not deliver drag events from a page into an extension's iframe, so
+`content/panel.js` catches the drop on the page and forwards it to the panel with authenticated extension messaging.
 
 ## Cost and safety
 Decart bills about **$0.02 per second** while connected (about $1.20 a minute). Nothing is billed until you drop a
