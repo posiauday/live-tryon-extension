@@ -10,7 +10,7 @@ WebRTC and the edited video comes back with the garment worn and the fabric movi
 3. On any shop page click the toolbar icon (or press **Alt+Shift+T**). A floating try-on panel appears **on the page**:
    drag it by the title bar, minimize it (the title bar keeps showing status and cost), make it bigger, or close it.
 4. Paste your key once (**AI session** card -> Save; it is stored only in this browser) and allow the camera.
-5. Drag a product image from the page onto the panel (or paste one with Ctrl+V). While you drag, a "Drop here to wear it" area covers the panel. The AI session starts when you drop, and the try-on replaces the camera in the same screen. Drop another image to switch garments. There is no upload form or type picker: what it is (top, pants, dress) is guessed from the image's alt text and file name.
+5. Drag a product image from the page onto the panel (or paste one with Ctrl+V). While you drag, a "Drop here to wear it" area covers the panel. The AI session starts when you drop, you get one minute, and the try-on replaces the camera in the same screen. Drop another image to switch garments. There is no upload form or type picker: what it is (top, pants, dress) is guessed from the image's alt text and file name.
 
 Chrome does not let extensions run on `chrome://` pages or the Web Store. There the icon shows a red **!**; its tooltip
 explains why. The extension never opens a window on its own.
@@ -22,10 +22,13 @@ Why the drop is caught on the page: Chrome does not deliver drag events from a p
 `content/panel.js` catches the drop on the page and forwards it to the panel with authenticated extension messaging.
 
 ## Cost and safety
-Decart bills about **$0.02 per second** while connected (about $1.20 a minute). Nothing is billed until you drop a
-garment. Each session is capped (default 2 minutes) by a short-lived, model-limited client token *and* a client-side
-timer; **End session**, **Stop** and closing the panel disconnect immediately. Your permanent key is only used to mint
-that token.
+**One minute per garment.** Decart bills about **$0.02 per second** while connected, so each garment costs at most
+about **$1.20**. Nothing is billed until you drop a garment. The session starts at the drop and a countdown shows the
+time left. When the minute is up the session ends, the garment is **deleted** and everything resets to the plain camera;
+drop another image to start a new minute. Dropping a different garment mid-way ends the current one and starts a fresh
+minute. The minute is enforced twice: by a short-lived, model-limited client token (Decart ends the session) and by a
+client-side timer. **Remove garment**, **Stop** and closing the panel disconnect immediately. Your permanent key is only
+used to mint that token.
 
 Check a key without billing (creating a token does not start a session):
 ```

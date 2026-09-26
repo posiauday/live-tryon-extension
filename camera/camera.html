@@ -52,7 +52,7 @@
             <div id="toast" class="toast" hidden></div>
             <div id="errorMessage" class="error-message" hidden></div>
           </div>
-          <p class="tip" id="tipText">Drag a product image from any shop page onto the video. That starts your live AI session and puts the garment on you; drop another image to switch. You can also paste an image with Ctrl+V.</p>
+          <p class="tip" id="tipText">Drag a product image from any shop page onto the video. You get 1 minute to try it on live; then the garment is removed and it resets. Drop another image to start a new minute.</p>
         </section>
 
         <aside class="sidebar">
@@ -65,12 +65,9 @@
             </div>
             <div id="sessionControls" hidden>
               <div id="sitesRow" class="stat-item" hidden><span>Shop sites</span><button id="allowSitesBtn" class="btn btn-ghost">Allow dragging from all sites</button></div>
-              <label class="field"><span>Session limit</span>
-                <select id="limitSelect"><option value="60">1 min (~$1.20)</option><option value="120" selected>2 min (~$2.40)</option><option value="300">5 min (~$6)</option><option value="600">10 min (~$12)</option></select>
-              </label>
-              <div class="stat-item"><span>Elapsed / cost</span><strong id="aiMeter">0s &middot; $0.00</strong></div>
-              <button id="aiStartBtn" class="btn btn-ghost wide" hidden>End session</button>
-              <p class="hint">Ready = nothing is billed yet. The AI session starts the moment you drop a garment on the video, at about $0.02 per second, and disconnects automatically at the limit. <button id="changeKeyBtn" class="link-btn">Change key</button></p>
+              <div class="stat-item"><span>Try-on time</span><strong id="aiMeter">1:00 left &middot; $0.00</strong></div>
+              <button id="aiStartBtn" class="btn btn-ghost wide" hidden>Remove garment</button>
+              <p class="hint">Each garment gets <strong>1 minute</strong> (about $1.20 at $0.02 per second). It starts when you drop the image; when time is up the garment is removed and everything resets. Ready = nothing is billed. <button id="changeKeyBtn" class="link-btn">Change key</button></p>
             </div>
           </section>
         </aside>

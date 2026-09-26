@@ -10,6 +10,8 @@ let apiKey = '';
 let live = null;
 let currentGarment = null; // { blob } last garment chosen, re-applied when the fit type / description changes
 let garmentApplied = false;
+const TRY_ON_SECONDS = 60; // every garment gets exactly one minute, then it is removed and everything resets
+let countdown = null;
 const embedded = new URLSearchParams(location.search).has('embed');
 if (embedded) document.documentElement.classList.add('embed');
 const $ = (id) => document.getElementById(id);
@@ -111,7 +113,35 @@ function setGarmentHint() {
   dropHintText.textContent = garmentApplied ? 'Drop another garment to switch' : 'Drag a product image here';
 }
 
-function formatMeter(seconds, cost) { return `${Math.round(seconds)}s · $${cost.toFixed(2)}`; }
+const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const meterText = (left, cost) => `${clock(left)} left · $${cost.toFixed(2)}`;
+const IDLE_METER = meterText(TRY_ON_SECONDS, 0);
+
+function stopCountdown() { clearInterval(countdown); countdown = null; }
+function startCountdown() {
+  stopCountdown();
+  const t0 = Date.now();
+  const tick = () => {
+    const used = Math.min(TRY_ON_SECONDS, (Date.now() - t0) / 1000); const left = TRY_ON_SECONDS - used;
+    aiMeter.textContent = meterText(left, used * DECART_PRICE_PER_SECOND);
+    postStatus(`AI · ${clock(left)} left`);
+    if (left <= 0) endTryOn('Time is up');
+  };
+  tick(); countdown = setInterval(tick, 250);
+}
+
+// Time is up (or the user removed the garment): end the session, DELETE the garment, and reset to the plain camera.
+function endTryOn(reason) {
+  stopAi();
+  showToast(`${reason}. The garment was removed. Drop another product image to start a new minute.`, 6000);
+}
+
+// everything that must be true again when no garment is being tried on
+function resetTryOnUi() {
+  stopCountdown(); currentGarment = null; garmentApplied = false;
+  aiVideo.hidden = true; aiVideo.srcObject = null; endBtn.hidden = true;
+  aiMeter.textContent = IDLE_METER; setGarmentHint();
+}
 
 function ensureLive() {
   if (live) return live;
@@ -120,10 +150,9 @@ function ensureLive() {
     onState: (state) => {
       setAiState(STATE_LABELS[state] || state, state === 'generating' ? 'ok' : state === 'reconnecting' ? 'warn' : '');
       endBtn.hidden = state === 'disconnected';
-      if (state === 'disconnected') { aiVideo.hidden = true; aiVideo.srcObject = null; garmentApplied = false; setGarmentHint(); }
+      if (state === 'disconnected') resetTryOnUi();
     },
     onQueue: (q) => setAiState(`In queue · #${q.position} of ${q.queueSize}`, 'warn'),
-    onTick: (seconds, cost) => { aiMeter.textContent = formatMeter(seconds, cost); postStatus(`AI · Live · ${formatMeter(seconds, cost)}`); },
     onEnded: (reason) => showToast(`AI session ended: ${reason}`),
     onError: (error) => { console.warn('Decart error', error); showToast(`AI error: ${error.message || error}`); }
   });
@@ -137,13 +166,13 @@ async function startAi() {
   if (session.active) return true;
   setAiState('Connecting...');
   try {
-    await session.connect({ apiKey, stream, limitSeconds: Number($('limitSelect').value) });
-    endBtn.hidden = false;
+    await session.connect({ apiKey, stream, limitSeconds: TRY_ON_SECONDS });
+    endBtn.hidden = false; startCountdown(); // billing runs from here: one minute per garment
     if (currentGarment) await applyGarmentToAi();
     return true;
   } catch (error) {
     console.error(error);
-    setAiState('Error', 'bad'); endBtn.hidden = true;
+    setAiState('Error', 'bad'); resetTryOnUi();
     showToast(`Could not start AI: ${error.message || error}`);
     return false;
   }
@@ -151,7 +180,7 @@ async function startAi() {
 
 function stopAi() {
   if (live && (live.active || live.connected)) live.disconnect();
-  aiVideo.hidden = true; aiVideo.srcObject = null; endBtn.hidden = true; garmentApplied = false; setGarmentHint();
+  resetTryOnUi();
 }
 
 async function applyGarmentToAi() {
@@ -163,7 +192,7 @@ async function applyGarmentToAi() {
   } catch (error) { showToast(`Could not set garment: ${error.message || error}`); }
 }
 
-endBtn.addEventListener('click', stopAi);
+endBtn.addEventListener('click', () => endTryOn('Try-on ended'));
 
 function refreshKeyUI() { $('keyForm').hidden = !!apiKey; $('sessionControls').hidden = !apiKey; }
 $('saveKeyBtn').addEventListener('click', async () => {
@@ -197,9 +226,11 @@ async function bitmapToBlob(bitmap, maxSide = 1024) {
 
 // A garment arrived (file, drag from a page, paste). Store it, then start the AI session or switch garment.
 async function loadGarmentSource(blobOrFile, hint = '') {
-  currentGarment = { blob: await bitmapToBlob(await decodeImage(blobOrFile)), kind: kindFromHint(hint || blobOrFile.name || '') };
+  const garment = { blob: await bitmapToBlob(await decodeImage(blobOrFile)), kind: kindFromHint(hint || blobOrFile.name || '') };
+  if (live && (live.active || live.connected)) stopAi(); // switching garments: end the old minute, start a fresh one
+  currentGarment = garment;
   if (!apiKey) { showToast('Garment ready. Paste your Decart API key in the AI session card and press Save to try it on.', 6000); $('apiKeyInput').focus(); return; }
-  if (!live || !(live.active || live.connected)) await startAi(); else await applyGarmentToAi();
+  await startAi();
 }
 
 // The image URL of something dragged out of a web page (prefers the <img> over a surrounding link), plus any text

@@ -23,14 +23,14 @@ function garmentPrompt(kind, description) {
 class DecartLive {
   constructor(handlers = {}) {
     this.h = handlers; this.rt = null; this.client = null; this.timer = null; this.startedAt = 0;
-    this.seconds = 0; this.state = 'disconnected'; this.limitSeconds = 120; this.active = false;
+    this.seconds = 0; this.state = 'disconnected'; this.limitSeconds = 60; this.active = false;
   }
   static available() { return typeof window !== 'undefined' && !!window.DecartSDK; }
   get connected() { return !!this.rt && this.state !== 'disconnected'; }
   estimatedCost() { return this.seconds * DECART_PRICE_PER_SECOND; }
 
   // stream: the live camera MediaStream. Resolves once the connection is established (it may queue first).
-  async connect({ apiKey, stream, limitSeconds = 120, garment = null, prompt = null }) {
+  async connect({ apiKey, stream, limitSeconds = 60, garment = null, prompt = null }) {
     if (this.active) return;
     if (!DecartLive.available()) throw new Error('Decart SDK is not loaded');
     this.active = true; this.limitSeconds = limitSeconds; this.seconds = 0;

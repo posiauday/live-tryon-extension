@@ -14,7 +14,7 @@
 
   const client = createDecartClient({ apiKey });
   // the same request the extension makes before every AI session
-  const options = { expiresIn: 300, allowedModels: ['lucy-vton-latest'], constraints: { realtime: { maxSessionDuration: 120 } } };
+  const options = { expiresIn: 300, allowedModels: ['lucy-vton-latest'], constraints: { realtime: { maxSessionDuration: 60 } } };
   try {
     const token = await client.tokens.create(options);
     console.log('OK: key accepted, short-lived client token created.');
