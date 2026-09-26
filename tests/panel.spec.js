@@ -42,7 +42,7 @@ test('panel shows on the page, drags, minimizes, resizes and closes', async () =
   await expect(frame.locator('#statusBadge')).toContainText('Live', { timeout: 15000 });
 
   const start = await panelBox(page);
-  expect(start.w).toBe(480); expect(start.x + start.w).toBeLessThanOrEqual(1280);
+  expect(start.w).toBe(620); expect(start.x + start.w).toBeLessThanOrEqual(1280);
 
   // drag by the title bar
   await page.mouse.move(start.x + 120, start.y + 20); await page.mouse.down(); await page.mouse.move(start.x - 200, start.y + 120, { steps: 6 }); await page.mouse.up();
@@ -57,7 +57,7 @@ test('panel shows on the page, drags, minimizes, resizes and closes', async () =
 
   // bigger / smaller
   await page.locator('#__tryon-panel-host button[data-act="size"]').click();
-  expect((await panelBox(page)).w).toBe(780);
+  expect((await panelBox(page)).w).toBe(960);
 
   // status from the iframe shows in the title bar (visible while minimized)
   await frame.evaluate(() => postStatus('AI · Live · 12s · $0.24'));

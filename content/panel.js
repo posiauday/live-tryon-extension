@@ -9,7 +9,7 @@
 (() => {
   if (window.__tryonPanel) { window.__tryonPanel.toggle(); return; }
 
-  const SIZES = { normal: { w: 480, h: 640 }, large: { w: 780, h: 780 } };
+  const SIZES = { normal: { w: 620, h: 720 }, large: { w: 960, h: 900 } };
   const BAR = 40;
   const MAX_BYTES = 12 * 1024 * 1024;
   let size = 'normal';

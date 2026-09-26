@@ -101,7 +101,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 
 /* on-page panel (camera.html?embed=1): compact single column */
 .embed body { min-width: 0; }
-.embed .app-shell { max-width: none; padding: 10px 12px 14px; }
+.embed .app-shell { max-width: none; padding: 8px 8px 12px; }
 .embed .brand { display: none; }
 .embed .topbar { margin-bottom: 10px; justify-content: flex-end; }
 .embed .main-grid { grid-template-columns: 1fr; gap: 12px; }
