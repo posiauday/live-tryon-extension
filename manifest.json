@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Live Virtual Try-On Pro",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Prototype live webcam-based virtual try-on Chrome extension.",
   "permissions": ["tabs"],
   "action": {

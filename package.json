@@ -10,5 +10,8 @@
   "devDependencies": {
     "@playwright/test": "^1.50.0",
     "playwright": "^1.50.0"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1"
   }
 }

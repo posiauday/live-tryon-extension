@@ -5,21 +5,24 @@ A prototype Chrome extension focused on a live webcam virtual try-on experience,
 ## Project status
 This project is a functional prototype and demo foundation for a future AI-powered virtual try-on product. It is not a final production-grade solution.
 
-## Features currently included
-- Webcam access from a Chrome extension popup
-- Selectable garment overlays (hoodie, shirt, dress, jacket)
-- Motion and brightness controls
-- Wind simulation control
-- Drag and reposition interaction on the garment overlay
-- Screenshot capture
-- Pose detection, segmentation, and cloth simulation hooks
+## What it does
+- Full-tab camera page (fixes the extension-popup camera permission problem)
+- **Drag & drop / upload / paste a clothing image** and wear it live
+- Real pose tracking (MediaPipe Pose Landmarker, bundled locally) with One Euro smoothing
+- Garment is warped onto your torso with a textured triangle mesh anchored to shoulders and hips
+- Simple cloth motion (spring/verlet) with Motion and Wind sliders
+- Occlusion: your head, hair and arms/hands (MediaPipe multiclass segmenter) are drawn over the garment
+- Automatic plain-background removal for product photos, brightness matching, capture (PNG) and recording (WebM)
 
-## Important limitations
-- This is not a full commercial-grade virtual try-on engine yet
-- It does not use a production-trained garment fitting model
-- The body segmentation and cloth simulation are simplified prototype logic
-- It does not yet include real 3D garment assets or a full AI backend
-- It is not yet Chrome Web Store ready without compliance and packaging review
+## Tips
+- Stand 1.5-2 m back so shoulders and hips are visible.
+- Best input: a front-facing photo of a top/dress on a plain or transparent background. Use "Fit as" to pick the garment shape.
+- Debug: open camera/camera.html?nomodels to skip loading the ML models.
+
+## Limitations
+- It is a 2D garment warp, not a 3D or AI-generated try-on; side views and heavy arm movement look approximate
+- Your own sleeves stay visible if they are wider than the garment
+- Background removal only handles plain backgrounds (flood fill); use PNGs with transparency otherwise
 
 ## Tech stack
 - Chrome Extension Manifest V3

@@ -10,15 +10,36 @@
     <div class="app-shell">
       <header class="topbar"><div><p class="eyebrow">AI FASHION DEMO</p><h1>Live Try-On Pro</h1></div><div class="header-controls"><span id="statusBadge" class="status-badge">Camera idle</span><button id="closeCameraBtn" class="close-btn">Stop</button></div></header>
       <main class="main-grid">
-        <section class="video-section"><div class="video-wrap"><video id="userVideo" autoplay playsinline muted></video><canvas id="overlayCanvas"></canvas><div id="errorMessage" class="error-message" hidden></div></div></section>
+        <section class="video-section">
+          <div class="video-wrap">
+            <video id="userVideo" autoplay playsinline muted></video><canvas id="overlayCanvas"></canvas>
+            <div id="dropHint" class="drop-hint">Drag &amp; drop a clothing image here</div>
+            <div id="toast" class="toast" hidden></div>
+            <div id="errorMessage" class="error-message" hidden></div>
+          </div>
+          <p class="tip">Stand about 1.5&ndash;2 m from the camera so your shoulders and hips are visible. Best results: a front-facing product photo of a top on a plain background.</p>
+        </section>
         <aside class="sidebar">
-          <section class="section"><h2>Garment</h2><div class="chip-group"><button class="chip active" data-garment="hoodie">Hoodie</button><button class="chip" data-garment="shirt">Shirt</button><button class="chip" data-garment="dress">Dress</button><button class="chip" data-garment="jacket">Jacket</button></div></section>
-          <section class="section"><h2>Physics</h2><label class="range-row"><span>Motion</span><input type="range" id="motionRange" min="0" max="100" value="55"></label><label class="range-row"><span>Wind</span><input type="range" id="windRange" min="0" max="100" value="30"></label><label class="range-row"><span>Brightness</span><input type="range" id="brightnessRange" min="0" max="100" value="65"></label></section>
+          <section class="section">
+            <h2>Your garment</h2>
+            <div class="actions"><button id="uploadBtn" class="btn-primary">Upload / drop image</button><input id="garmentFile" type="file" accept="image/*" hidden /></div>
+            <p class="hint">Or drag an image onto the camera, or paste one (Ctrl+V).</p>
+            <h2 class="sub">Samples</h2>
+            <div class="chip-group"><button class="chip active" data-garment="hoodie">Hoodie</button><button class="chip" data-garment="shirt">Shirt</button><button class="chip" data-garment="dress">Dress</button><button class="chip" data-garment="jacket">Jacket</button></div>
+            <label class="range-row"><span>Fit as</span><select id="fitType"><option value="hoodie">Hoodie</option><option value="shirt">Shirt / top</option><option value="jacket">Jacket</option><option value="dress">Dress</option></select></label>
+          </section>
+          <section class="section"><h2>Fit &amp; look</h2>
+            <label class="range-row"><span>Size</span><input type="range" id="sizeRange" min="60" max="160" value="100"></label>
+            <label class="range-row"><span>Brightness</span><input type="range" id="brightnessRange" min="0" max="100" value="50"></label>
+            <label class="range-row"><span>Motion</span><input type="range" id="motionRange" min="0" max="100" value="55"></label>
+            <label class="range-row"><span>Wind</span><input type="range" id="windRange" min="0" max="100" value="30"></label>
+            <button id="resetFitBtn" class="btn-secondary">Reset fit</button>
+          </section>
           <section class="section"><h2>Status</h2><div class="stat-item"><span>Pose:</span><strong id="poseStatus">Loading</strong></div><div class="stat-item"><span>Processing FPS:</span><strong id="fpsCounter">0</strong></div></section>
           <section class="section actions"><button id="captureBtn" class="btn-secondary">📸 Capture</button><button id="recordBtn" class="btn-secondary">🎬 Record</button></section>
         </aside>
       </main>
     </div>
-    <script src="../src/pose-detector.js"></script><script src="../src/body-segmentation.js"></script><script src="../src/cloth-physics.js"></script><script src="../src/garment-overlay.js"></script><script src="camera.js"></script>
+    <script src="../src/mediapipe-loader.js"></script><script src="../src/pose-detector.js"></script><script src="../src/body-segmentation.js"></script><script src="../src/cloth-physics.js"></script><script src="../src/garment-overlay.js"></script><script src="camera.js"></script>
   </body>
 </html>
