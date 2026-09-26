@@ -1,7 +1,7 @@
 {
   "name": "live-tryon-extension",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.6.0",
   "scripts": {
     "validate": "node validate-project.js",
     "test:smoke": "playwright test tests/extension-smoke.spec.js",
@@ -15,7 +15,6 @@
     "playwright": "^1.50.0"
   },
   "dependencies": {
-    "@decartai/sdk": "^0.2.3",
-    "@mediapipe/tasks-vision": "^1.0.1"
+    "@decartai/sdk": "^0.2.3"
   }
 }

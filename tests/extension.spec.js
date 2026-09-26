@@ -4,8 +4,8 @@ const path = require('path');
 
 const root = path.join(__dirname, '..');
 
-test('installed extension: CSP allows WebAssembly and the models load', async () => {
-  test.setTimeout(150000);
+test('installed extension: camera page runs and the bundled Decart SDK loads under the extension CSP', async () => {
+  test.setTimeout(60000);
   const context = await chromium.launchPersistentContext('', {
     channel: 'chromium',
     headless: true,
@@ -19,13 +19,10 @@ test('installed extension: CSP allows WebAssembly and the models load', async ()
     const page = await context.newPage();
     const errors = []; page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`chrome-extension://${id}/camera/camera.html`);
-    await expect(page.locator('#poseStatus')).toHaveText(/Searching|Detected/, { timeout: 120000 });
-    await expect.poll(() => page.evaluate(() => !!(window.__tryOn.segmenter && window.__tryOn.segmenter.ready)), { timeout: 120000 }).toBe(true);
-    expect(await page.locator('#poseStatus').textContent()).not.toMatch(/Unavailable|WebAssembly|CompileError/);
-    expect(errors).toEqual([]);
-    // the bundled Decart SDK loads under the extension CSP
+    await expect(page.locator('#statusBadge')).toContainText('Live', { timeout: 20000 });
     expect(await page.evaluate(() => typeof window.DecartSDK.createDecartClient + '/' + typeof window.DecartSDK.models.realtime)).toBe('function/function');
-
+    await expect(page.locator('.eyebrow')).toContainText(/v\d+\.\d+\.\d+/); // the version is shown
+    expect(errors).toEqual([]);
   } finally {
     await context.close();
   }

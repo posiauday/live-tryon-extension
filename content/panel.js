@@ -5,7 +5,7 @@
 (() => {
   if (window.__tryonPanel) { window.__tryonPanel.toggle(); return; }
 
-  const SIZES = { normal: { w: 440, h: 660 }, large: { w: 760, h: 760 } };
+  const SIZES = { normal: { w: 480, h: 740 }, large: { w: 760, h: 760 } };
   const BAR = 40;
   let size = 'normal';
   let minimized = false;

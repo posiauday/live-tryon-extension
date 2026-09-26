@@ -6,7 +6,7 @@
     <title>Live Virtual Try-On</title>
     <link rel="stylesheet" href="camera.css" />
   </head>
-  <body data-mode="local">
+  <body>
     <div class="app-shell">
       <header class="topbar">
         <div class="brand">
@@ -27,11 +27,14 @@
       <main class="main-grid">
         <section class="stage">
           <div class="video-wrap">
+            <!-- one screen: your camera until the AI output arrives, then the try-on in the same place -->
             <video id="userVideo" autoplay playsinline muted></video>
-            <canvas id="overlayCanvas"></canvas>
             <video id="aiVideo" autoplay playsinline muted hidden></video>
             <div id="aiBadge" class="ai-badge" hidden></div>
-            <div id="dropHint" class="drop-hint">Drop a clothing image anywhere</div>
+            <div id="dropHint" class="drop-hint">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-8 8"/></svg>
+              <span id="dropHintText">Drag a product image here</span>
+            </div>
             <div class="drop-overlay" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
               <span>Release to wear it</span>
@@ -49,16 +52,11 @@
             <div id="toast" class="toast" hidden></div>
             <div id="errorMessage" class="error-message" hidden></div>
           </div>
-          <p class="tip" id="tipText">Stand 1.5&ndash;2&nbsp;m from the camera so your shoulders and hips are in view. Best input: a front-facing photo of a top on a plain background.</p>
+          <p class="tip" id="tipText">Drag a garment from any shop page (or a file) onto the camera. The AI session starts when you drop it, follows you as you move, and is billed per second while connected.</p>
         </section>
 
         <aside class="sidebar">
-          <div class="segmented" id="modeSwitch" role="tablist">
-            <button data-mode="ai" role="tab">AI Live <small>realistic</small></button>
-            <button data-mode="local" role="tab" class="active">Local preview <small>free</small></button>
-          </div>
-
-          <section class="card ai-only" id="aiCard">
+          <section class="card" id="aiCard">
             <div class="card-head"><h2>AI session</h2><span id="aiState" class="pill">Not connected</span></div>
             <div id="keyForm">
               <p class="hint">Powered by Decart Lucy V-TON, the model behind Anywear. Paste your Decart API key (kept only in this browser).</p>
@@ -66,12 +64,12 @@
               <a class="link-btn" href="https://platform.decart.ai" target="_blank" rel="noreferrer">Get a key at platform.decart.ai</a>
             </div>
             <div id="sessionControls" hidden>
-              <button id="aiStartBtn" class="btn btn-primary wide">Start AI try-on</button>
               <label class="field"><span>Session limit</span>
                 <select id="limitSelect"><option value="60">1 min (~$1.20)</option><option value="120" selected>2 min (~$2.40)</option><option value="300">5 min (~$6)</option><option value="600">10 min (~$12)</option></select>
               </label>
               <div class="stat-item"><span>Elapsed / cost</span><strong id="aiMeter">0s &middot; $0.00</strong></div>
-              <p class="hint">Billed by Decart at about $0.02 per second while connected. It disconnects automatically at the limit. <button id="changeKeyBtn" class="link-btn">Change key</button></p>
+              <button id="aiStartBtn" class="btn btn-ghost wide" hidden>End session</button>
+              <p class="hint">Billed by Decart at about $0.02 per second while connected, starting when you drop a garment. It disconnects automatically at the limit. <button id="changeKeyBtn" class="link-btn">Change key</button></p>
             </div>
           </section>
 
@@ -84,31 +82,13 @@
             </button>
             <input id="garmentFile" type="file" accept="image/*" hidden />
             <label class="field"><span>Fit as</span>
-              <select id="fitType"><option value="hoodie">Hoodie</option><option value="shirt">Shirt / top</option><option value="jacket">Jacket</option><option value="dress">Dress</option></select>
+              <select id="fitType"><option value="shirt">Shirt / top</option><option value="hoodie">Hoodie</option><option value="jacket">Jacket</option><option value="dress">Dress</option></select>
             </label>
-            <label class="field ai-only"><span>Describe</span><input id="garmentDesc" type="text" placeholder="optional, e.g. black leather jacket" /></label>
-
-            <div class="local-only">
-              <h3>Samples</h3>
-              <div class="chip-group"><button class="chip active" data-garment="hoodie">Hoodie</button><button class="chip" data-garment="shirt">Shirt</button><button class="chip" data-garment="dress">Dress</button><button class="chip" data-garment="jacket">Jacket</button></div>
-            </div>
-          </section>
-
-          <section class="card local-only">
-            <div class="card-head"><h2>Fit &amp; look</h2><button id="resetFitBtn" class="link-btn">Reset</button></div>
-            <label class="range-row"><span>Size</span><input type="range" id="sizeRange" min="60" max="160" value="100"></label>
-            <label class="range-row"><span>Brightness</span><input type="range" id="brightnessRange" min="0" max="100" value="50"></label>
-            <label class="range-row"><span>Motion</span><input type="range" id="motionRange" min="0" max="100" value="55"></label>
-            <label class="range-row"><span>Wind</span><input type="range" id="windRange" min="0" max="100" value="30"></label>
-          </section>
-
-          <section class="card status-card local-only">
-            <div class="stat-item"><span>Pose</span><strong id="poseStatus">Loading</strong></div>
-            <div class="stat-item"><span>Processing FPS</span><strong id="fpsCounter">0</strong></div>
+            <label class="field"><span>Describe</span><input id="garmentDesc" type="text" placeholder="optional, e.g. black leather jacket" /></label>
           </section>
         </aside>
       </main>
     </div>
-    <script src="../vendor/decart/decart-sdk.js"></script><script src="../src/decart-live.js"></script><script src="../src/mediapipe-loader.js"></script><script src="../src/pose-detector.js"></script><script src="../src/body-segmentation.js"></script><script src="../src/cloth-physics.js"></script><script src="../src/garment-overlay.js"></script><script src="camera.js"></script>
+    <script src="../vendor/decart/decart-sdk.js"></script><script src="../src/decart-live.js"></script><script src="camera.js"></script>
   </body>
 </html>

@@ -1,66 +1,47 @@
-# Live Virtual Try-On Extension
+# Live Virtual Try-On (Chrome extension)
 
-A prototype Chrome extension focused on a live webcam virtual try-on experience, with interactive garment overlay, motion physics, and camera-based experimentation.
-
-## Project status
-This project is a functional prototype and demo foundation for a future AI-powered virtual try-on product. It is not a final production-grade solution.
+Drag a garment from any shop page onto your live camera and see it on you, moving with you. It uses Decart's
+**Lucy V-TON** real-time video model, the same model behind the Anywear extension: your camera streams to Decart over
+WebRTC and the edited video comes back with the garment worn and the fabric moving. No standing back, no fitting maths.
 
 ## Using it
-Click the toolbar icon (or press Alt+Shift+T) on any shop page. A floating try-on panel appears **on the page**: drag it by its title bar, minimize it (the title bar keeps showing AI status and cost), make it bigger, or close it. Drag a product image from the page straight into the panel to wear it. On pages where extensions cannot inject (chrome://, the Web Store) it opens as a standalone window instead.
+1. Get a Decart API key at https://platform.decart.ai (new accounts get a little free credit).
+2. Load the extension: `chrome://extensions` -> Developer mode -> **Load unpacked** -> select this folder.
+3. On any shop page click the toolbar icon (or press **Alt+Shift+T**). A floating try-on panel appears **on the page**:
+   drag it by the title bar, minimize it (the title bar keeps showing status and cost), make it bigger, or close it.
+4. Paste your key once (**AI session** card -> Save; it is stored only in this browser) and allow the camera.
+5. Drag a product image from the page into the panel (or use **Upload**, or paste with Ctrl+V). The AI session starts
+   when you drop the garment and the try-on replaces the camera in the same screen. Drop another image to switch garments.
 
-Dragging from a shop needs no extra permission when Chrome hands over the image file; otherwise the panel asks once for access to that image's site.
+Chrome does not let extensions run on `chrome://` pages or the Web Store. There the icon shows a red **!**; its tooltip
+explains why. The extension never opens a window on its own.
 
-## Two modes
-**AI Live (realistic)** uses Decart's Lucy V-TON realtime video model, the same model behind the Anywear extension. Your camera streams to Decart over WebRTC and the edited video comes back with the garment worn and moving with you. No standing back, no fitting maths, real drape and shading.
-1. Create a key at https://platform.decart.ai
-2. In the extension window choose **AI Live**, paste the key (stored only in this browser) and press **Save**.
-3. Drop a garment image (file, or drag straight from a shop page) onto the camera. It connects and dresses you.
+Dragging from a shop needs no extra permission when Chrome hands over the image file; otherwise the panel asks once for
+access to that image's site.
 
-To check a key before using it: `DECART_API_KEY=dct_... npm run check:decart` (PowerShell: `$env:DECART_API_KEY="dct_..."; npm run check:decart`). It only creates a token, which does not bill.
+## Cost and safety
+Decart bills about **$0.02 per second** while connected (about $1.20 a minute). Nothing is billed until you drop a
+garment. Each session is capped (default 2 minutes) by a short-lived, model-limited client token *and* a client-side
+timer; **End session**, **Stop** and closing the panel disconnect immediately. Your permanent key is only used to mint
+that token.
 
-Cost: Decart bills about $0.02 per second while connected. Each session is capped (default 2 min) through a short-lived client token and a client-side timer, and Stop or closing the window disconnects immediately.
+Check a key without billing (creating a token does not start a session):
+```
+DECART_API_KEY=dct_... npm run check:decart
+```
+PowerShell: `$env:DECART_API_KEY="dct_..."; npm run check:decart`
 
-**Local preview (free)** is the on-device MediaPipe mesh warp described below. It is approximate, but free and offline.
+## Development
+- `npm install`, then `npx playwright install chromium`
+- `npm run build:decart` re-bundles `@decartai/sdk` into `vendor/decart/decart-sdk.js` (Manifest V3 forbids remote code)
+- `node validate-project.js` and `npx playwright test` (AI flow is tested against a mock SDK, so tests cost nothing)
+- Layout: `background/` (toolbar click -> inject panel), `content/panel.js` (floating panel), `camera/` (the try-on UI, shown
+  inside the panel iframe), `src/decart-live.js` (session, token, garment prompt), `vendor/decart/` (bundled SDK)
 
-## What it does (local preview)
-- Full-tab camera page (fixes the extension-popup camera permission problem)
-- **Drag & drop / upload / paste a clothing image** and wear it live
-- Real pose tracking (MediaPipe Pose Landmarker, bundled locally) with One Euro smoothing
-- Garment is warped onto your torso with a textured triangle mesh anchored to shoulders and hips
-- Simple cloth motion (spring/verlet) with Motion and Wind sliders
-- Occlusion: your head, hair and arms/hands (MediaPipe multiclass segmenter) are drawn over the garment
-- Automatic plain-background removal for product photos, brightness matching, capture (PNG) and recording (WebM)
-
-## Tips
-- Stand 1.5-2 m back so shoulders and hips are visible.
-- Best input: a front-facing photo of a top/dress on a plain or transparent background. Use "Fit as" to pick the garment shape.
-- Debug: open camera/camera.html?nomodels to skip loading the ML models.
-
-## Limitations
-- It is a 2D garment warp, not a 3D or AI-generated try-on; side views and heavy arm movement look approximate
-- Your own sleeves stay visible if they are wider than the garment
-- Background removal only handles plain backgrounds (flood fill); use PNGs with transparency otherwise
-
-## Tech stack
-- Chrome Extension Manifest V3
-- JavaScript
-- HTML/CSS
-- MediaPipe pose detection (prototype integration)
-- Custom body segmentation and cloth simulation prototypes
-
-## Local setup
-1. Open Chrome and go to `chrome://extensions/`
-2. Enable Developer mode
-3. Click **Load unpacked**
-4. Select this repository folder
-5. Open the extension popup and allow camera access
-
-## Future roadmap
-1. Replace the simplified cloth logic with a production-level 3D garment simulation
-2. Add real body segmentation / mask tracking
-3. Integrate a real AI garment fitting backend
-4. Add product catalog, shopping flow, and metrics
-5. Package and prepare for Chrome Web Store submission
+## Limits
+- Needs a Decart account and internet; quality and latency depend on Decart's service and queue.
+- Best results with a clear front-facing product photo of a top, jacket or dress.
+- Some sites with very strict security settings may block the embedded panel.
 
 ## License
 MIT

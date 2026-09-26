@@ -1,39 +1,34 @@
+// Live try-on page. One screen: your camera until the AI (Decart Lucy V-TON) output arrives, then the try-on in the
+// same place. The AI session (and billing) starts when a garment is dropped and ends with "End session" / Stop / close.
 let stream = null;
-let overlay;
-let detector;
-let segmenter;
 let running = false;
-let processingFrames = 0;
-let frameCount = 0;
-let fpsWindowStart = performance.now();
 let recorder = null;
 let recordedChunks = [];
+let recordTimer = null;
 let composite = null;
-let mode = 'local';
 let apiKey = '';
 let live = null;
-let currentGarment = null; // { blob } last garment chosen, so it can be (re)applied to the AI session
-let modelsRequested = false;
+let currentGarment = null; // { blob } last garment chosen, re-applied when the fit type / description changes
+let garmentApplied = false;
 const embedded = new URLSearchParams(location.search).has('embed');
 if (embedded) document.documentElement.classList.add('embed');
 const $ = (id) => document.getElementById(id);
 // tell the on-page panel what is going on, so it can show it while minimized
 function postStatus(text) { if (embedded && window.parent !== window) window.parent.postMessage({ tryon: 'status', text }, '*'); }
 try { const v = chrome.runtime.getManifest().version; const eyebrow = document.querySelector('.eyebrow'); if (eyebrow) eyebrow.textContent = `Virtual fitting room · v${v}`; } catch (error) { /* not running as an extension */ }
+
 const video = $('userVideo');
 const aiVideo = $('aiVideo');
-const canvas = $('overlayCanvas');
 const statusBadge = $('statusBadge');
 const errorMessage = $('errorMessage');
-const fpsEl = $('fpsCounter');
-const poseStatus = $('poseStatus');
 const toast = $('toast');
 const fitType = $('fitType');
 const recordBtn = $('recordBtn');
 const aiBadge = $('aiBadge');
 const aiState = $('aiState');
 const aiMeter = $('aiMeter');
-const aiStartBtn = $('aiStartBtn');
+const endBtn = $('aiStartBtn'); // "End session"
+const dropHintText = $('dropHintText');
 
 // ---------- small helpers ----------
 const store = {
@@ -57,19 +52,7 @@ function showToast(text, ms = 4000) {
   clearTimeout(showToast.timer); showToast.timer = setTimeout(() => { toast.hidden = true; }, ms);
 }
 
-// ---------- local (MediaPipe) mode ----------
-async function loadModels() {
-  if (modelsRequested) return; modelsRequested = true;
-  if (new URLSearchParams(location.search).has('nomodels')) { poseStatus.textContent = 'Models off (debug)'; return; }
-  if (!window.MediaPipeLoader || !MediaPipeLoader.available()) { poseStatus.textContent = 'Unavailable (open from the extension)'; return; }
-  poseStatus.textContent = 'Loading model...';
-  detector = new PoseDetector();
-  try { await detector.initialize(); poseStatus.textContent = 'Searching'; }
-  catch (error) { console.warn('Pose model failed', error); detector = null; poseStatus.textContent = `Unavailable (${error.message || 'model failed'})`; return; }
-  segmenter = new BodySegmentation();
-  segmenter.initialize().catch((error) => { console.warn('Segmentation model failed', error); segmenter = null; });
-}
-
+// ---------- camera ----------
 async function startCamera() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }, facingMode: 'user' }, audio: false });
@@ -78,14 +61,6 @@ async function startCamera() {
     running = true;
     statusBadge.textContent = '🔴 Live';
     errorMessage.hidden = true;
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
-    overlay = new GarmentOverlay(canvas, { garmentType: 'hoodie' });
-    overlay.setMotion($('motionRange').value);
-    overlay.setWind($('windRange').value);
-    overlay.setBrightness($('brightnessRange').value);
-    requestVideoFrameLoop();
-    if (mode === 'local') loadModels();
   } catch (error) {
     statusBadge.textContent = 'Camera error';
     errorMessage.textContent = cameraError(error);
@@ -107,51 +82,23 @@ function stopCamera() {
   stream = null; video.srcObject = null; statusBadge.textContent = 'Camera stopped';
 }
 
-function updateFps() {
-  processingFrames += 1; const now = performance.now();
-  if (now - fpsWindowStart >= 1000) { fpsEl.textContent = String(processingFrames); processingFrames = 0; fpsWindowStart = now; }
-}
-
 function aiOnScreen() { return !aiVideo.hidden && aiVideo.videoWidth > 0; }
 
+// What is on screen right now (AI output, or the mirrored camera), for capture / recording.
 function drawComposite() {
-  const ai = aiOnScreen();
-  const w = ai ? aiVideo.videoWidth : canvas.width, h = ai ? aiVideo.videoHeight : canvas.height;
+  const ai = aiOnScreen(); const src = ai ? aiVideo : video;
+  const w = src.videoWidth || 1280, h = src.videoHeight || 720;
   if (!composite) composite = document.createElement('canvas');
   if (composite.width !== w || composite.height !== h) { composite.width = w; composite.height = h; }
   const ctx = composite.getContext('2d');
   if (ai) { ctx.drawImage(aiVideo, 0, 0, w, h); return composite; } // the AI stream is already mirrored
   ctx.setTransform(-1, 0, 0, 1, w, 0); // match the mirrored on-screen view
   ctx.drawImage(video, 0, 0, w, h);
-  ctx.drawImage(canvas, 0, 0);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   return composite;
 }
 
-async function processFrame() {
-  if (!running) return;
-  frameCount += 1;
-  if (mode === 'local') {
-    if (detector && detector.ready) {
-      const result = await detector.detect(video);
-      if (result.landmarks) { poseStatus.textContent = 'Detected'; overlay.setPose(result.landmarks); }
-      else { poseStatus.textContent = 'Searching (show shoulders and hips)'; overlay.setPose(null); }
-    }
-    if (segmenter && segmenter.ready && frameCount % 3 === 0) segmenter.segment(video);
-    overlay.render(performance.now(), { video, skinMask: segmenter && segmenter.hasMask ? segmenter.maskCanvas : null });
-  }
-  if (recorder && recorder.state === 'recording') drawComposite();
-  updateFps();
-  requestVideoFrameLoop();
-}
-
-function requestVideoFrameLoop() {
-  if (!running) return;
-  if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) video.requestVideoFrameCallback(() => processFrame());
-  else requestAnimationFrame(processFrame);
-}
-
-// ---------- AI Live mode (Decart Lucy V-TON) ----------
+// ---------- AI session (Decart Lucy V-TON) ----------
 const STATE_LABELS = { connecting: 'Connecting...', connected: 'Connected', generating: 'Live', reconnecting: 'Reconnecting...', disconnected: 'Not connected' };
 
 function setAiState(text, tone) {
@@ -159,6 +106,10 @@ function setAiState(text, tone) {
   aiBadge.hidden = !text || text === STATE_LABELS.disconnected;
   aiBadge.textContent = `AI · ${text}`;
   postStatus(text === STATE_LABELS.disconnected ? '' : `AI · ${text}`);
+}
+
+function setGarmentHint() {
+  dropHintText.textContent = garmentApplied ? 'Drop another garment to switch' : 'Drag a product image here';
 }
 
 function formatMeter(seconds, cost) { return `${Math.round(seconds)}s · $${cost.toFixed(2)}`; }
@@ -169,8 +120,8 @@ function ensureLive() {
     onRemoteStream: (remote) => { aiVideo.srcObject = remote; aiVideo.hidden = false; aiVideo.play().catch(() => {}); },
     onState: (state) => {
       setAiState(STATE_LABELS[state] || state, state === 'generating' ? 'ok' : state === 'reconnecting' ? 'warn' : '');
-      aiStartBtn.textContent = state === 'disconnected' ? 'Start AI try-on' : 'Stop AI try-on';
-      if (state === 'disconnected') { aiVideo.hidden = true; aiVideo.srcObject = null; }
+      endBtn.hidden = state === 'disconnected';
+      if (state === 'disconnected') { aiVideo.hidden = true; aiVideo.srcObject = null; garmentApplied = false; setGarmentHint(); }
     },
     onQueue: (q) => setAiState(`In queue · #${q.position} of ${q.queueSize}`, 'warn'),
     onTick: (seconds, cost) => { aiMeter.textContent = formatMeter(seconds, cost); postStatus(`AI · Live · ${formatMeter(seconds, cost)}`); },
@@ -181,19 +132,19 @@ function ensureLive() {
 }
 
 async function startAi() {
-  if (!apiKey) { showToast('Add your Decart API key first.'); return false; }
+  if (!apiKey) { showToast('Add your Decart API key first.'); $('apiKeyInput').focus(); return false; }
   if (!stream) { showToast('Start the camera first.'); return false; }
   const session = ensureLive();
   if (session.active) return true;
   setAiState('Connecting...');
   try {
     await session.connect({ apiKey, stream, limitSeconds: Number($('limitSelect').value) });
-    aiStartBtn.textContent = 'Stop AI try-on';
+    endBtn.hidden = false;
     if (currentGarment) await applyGarmentToAi();
     return true;
   } catch (error) {
     console.error(error);
-    setAiState('Error', 'bad'); aiStartBtn.textContent = 'Start AI try-on';
+    setAiState('Error', 'bad'); endBtn.hidden = true;
     showToast(`Could not start AI: ${error.message || error}`);
     return false;
   }
@@ -201,38 +152,30 @@ async function startAi() {
 
 function stopAi() {
   if (live && (live.active || live.connected)) live.disconnect();
-  aiVideo.hidden = true; aiVideo.srcObject = null; aiStartBtn.textContent = 'Start AI try-on';
+  aiVideo.hidden = true; aiVideo.srcObject = null; endBtn.hidden = true; garmentApplied = false; setGarmentHint();
 }
 
 async function applyGarmentToAi() {
   if (!live || !live.connected || !currentGarment) return;
-  try { await live.setGarment(currentGarment.blob, fitType.value, $('garmentDesc').value); showToast('Garment sent. It appears on you within a couple of seconds.'); }
-  catch (error) { showToast(`Could not set garment: ${error.message || error}`); }
+  try {
+    await live.setGarment(currentGarment.blob, fitType.value, $('garmentDesc').value);
+    garmentApplied = true; setGarmentHint();
+    showToast('Garment sent. It appears on you within a couple of seconds.');
+  } catch (error) { showToast(`Could not set garment: ${error.message || error}`); }
 }
 
-aiStartBtn.addEventListener('click', () => { const session = ensureLive(); if (session.active || session.connected) stopAi(); else startAi(); });
-[fitType, $('garmentDesc')].forEach((el) => el.addEventListener('change', () => { if (mode === 'ai') applyGarmentToAi(); }));
+endBtn.addEventListener('click', stopAi);
+[fitType, $('garmentDesc')].forEach((el) => el.addEventListener('change', () => applyGarmentToAi()));
 
-function refreshKeyUI() {
-  $('keyForm').hidden = !!apiKey; $('sessionControls').hidden = !apiKey;
-}
+function refreshKeyUI() { $('keyForm').hidden = !!apiKey; $('sessionControls').hidden = !apiKey; }
 $('saveKeyBtn').addEventListener('click', async () => {
   const value = $('apiKeyInput').value.trim();
   if (!value) { showToast('Paste your Decart API key.'); return; }
-  apiKey = value; await store.set('decartKey', value); $('apiKeyInput').value = ''; refreshKeyUI(); showToast('Key saved in this browser.');
+  apiKey = value; await store.set('decartKey', value); $('apiKeyInput').value = ''; refreshKeyUI();
+  showToast(currentGarment ? 'Key saved. Starting your try-on...' : 'Key saved. Now drop a garment onto the camera.');
+  if (currentGarment) startAi();
 });
 $('changeKeyBtn').addEventListener('click', async () => { stopAi(); apiKey = ''; await store.set('decartKey', ''); refreshKeyUI(); });
-
-function setMode(next) {
-  mode = next; document.body.dataset.mode = next;
-  document.querySelectorAll('#modeSwitch button').forEach((b) => b.classList.toggle('active', b.dataset.mode === next));
-  $('tipText').textContent = next === 'ai'
-    ? 'Drag a garment from any shop page (or a file) onto the camera. AI Live needs no standing back and follows you as you move. It is billed per second while connected.'
-    : 'Stand 1.5–2 m from the camera so your shoulders and hips are in view. Best input: a front-facing photo of a top on a plain background.';
-  if (next === 'local') { stopAi(); if (running) loadModels(); }
-  store.set('mode', next);
-}
-document.querySelectorAll('#modeSwitch button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
 
 // ---------- garment image input: drag & drop, upload, paste ----------
 // createImageBitmap cannot decode SVG (some shops serve it); fall back to an <img> element.
@@ -254,19 +197,11 @@ async function bitmapToBlob(bitmap, maxSide = 1024) {
   return new Promise((resolve) => c.toBlob(resolve, 'image/png'));
 }
 
+// A garment arrived (file, drag from a page, paste). Store it, then start the AI session or switch garment.
 async function loadGarmentSource(blobOrFile) {
-  if (mode === 'ai') {
-    const bitmap = await decodeImage(blobOrFile);
-    currentGarment = { blob: await bitmapToBlob(bitmap) };
-    if (!live || !(live.active || live.connected)) { const ok = await startAi(); if (!ok) return; }
-    else await applyGarmentToAi();
-    return;
-  }
-  if (!overlay) { showToast('Start the camera first.'); return; }
-  const bitmap = await decodeImage(blobOrFile);
-  overlay.setGarmentImage(bitmap);
-  document.querySelectorAll('.chip').forEach((b) => b.classList.remove('active'));
-  showToast('Garment loaded. Stand back so your shoulders and hips are in view.');
+  currentGarment = { blob: await bitmapToBlob(await decodeImage(blobOrFile)) };
+  if (!apiKey) { showToast('Garment ready. Paste your Decart API key in the AI session card and press Save to try it on.', 6000); $('apiKeyInput').focus(); return; }
+  if (!live || !(live.active || live.connected)) await startAi(); else await applyGarmentToAi();
 }
 
 // The image URL of something dragged out of a web page (prefers the <img> over a surrounding link).
@@ -312,19 +247,9 @@ document.addEventListener('paste', (e) => { const item = Array.from(e.clipboardD
 const fileInput = $('garmentFile');
 $('uploadBtn').addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadGarmentSource(fileInput.files[0]); fileInput.value = ''; });
-
-document.querySelectorAll('.chip').forEach((button) => button.addEventListener('click', () => {
-  document.querySelectorAll('.chip').forEach((b) => b.classList.remove('active')); button.classList.add('active');
-  fitType.value = button.dataset.garment; overlay?.useSample(button.dataset.garment);
-}));
-fitType.addEventListener('change', () => overlay?.setType(fitType.value));
-$('motionRange').addEventListener('input', (e) => overlay?.setMotion(e.target.value));
-$('windRange').addEventListener('input', (e) => overlay?.setWind(e.target.value));
-$('brightnessRange').addEventListener('input', (e) => overlay?.setBrightness(e.target.value));
-$('sizeRange').addEventListener('input', (e) => overlay?.setSize(e.target.value));
-$('resetFitBtn').addEventListener('click', () => { overlay?.resetAdjust(); $('sizeRange').value = 100; });
 $('closeCameraBtn').addEventListener('click', stopCamera);
 
+// ---------- capture / record ----------
 function download(url, name) { const link = document.createElement('a'); link.download = name; link.href = url; link.click(); }
 $('captureBtn').addEventListener('click', () => {
   if (!stream) return;
@@ -336,23 +261,16 @@ recordBtn.addEventListener('click', () => {
   drawComposite(); recordedChunks = [];
   recorder = new MediaRecorder(composite.captureStream(30), { mimeType: 'video/webm' });
   recorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
-  recorder.onstop = () => { download(URL.createObjectURL(new Blob(recordedChunks, { type: 'video/webm' })), `tryon-${Date.now()}.webm`); recordBtn.textContent = '🎬 Record'; showToast('Recording saved.'); };
-  recorder.start(); recordBtn.textContent = '⏹ Stop recording';
+  recorder.onstop = () => { clearInterval(recordTimer); download(URL.createObjectURL(new Blob(recordedChunks, { type: 'video/webm' })), `tryon-${Date.now()}.webm`); recordBtn.textContent = '🎬 Record'; showToast('Recording saved.'); };
+  recorder.start(); recordTimer = setInterval(drawComposite, 1000 / 30); recordBtn.textContent = '⏹ Stop recording';
 });
 
-// sample thumbnails on the garment chips
-document.querySelectorAll('.chip[data-garment]').forEach((chip) => {
-  try { const img = new Image(); img.alt = ''; img.src = makeSampleGarment(chip.dataset.garment).toDataURL(); chip.prepend(img); } catch (error) { /* thumbnails are optional */ }
-});
-poseStatus.addEventListener('mouseover', () => { poseStatus.title = poseStatus.textContent; });
-window.addEventListener('beforeunload', stopCamera);
-window.addEventListener('pagehide', stopCamera); // panel closed: release the camera and end any billed AI session // also ends any billed AI session
-window.__tryOn = { get overlay() { return overlay; }, get detector() { return detector; }, get segmenter() { return segmenter; }, get running() { return running; }, get mode() { return mode; }, get live() { return live; }, setMode };
+window.addEventListener('beforeunload', stopCamera); // also ends any billed AI session
+window.addEventListener('pagehide', stopCamera); // panel closed: release the camera and end any billed AI session
+window.__tryOn = { get running() { return running; }, get live() { return live; }, get garmentApplied() { return garmentApplied; } };
 
 (async function init() {
   apiKey = (await store.get('decartKey')) || '';
-  const saved = await store.get('mode');
-  refreshKeyUI();
-  setMode(saved === 'ai' || saved === 'local' ? saved : (apiKey ? 'ai' : 'local'));
+  refreshKeyUI(); setGarmentHint();
   startCamera();
 })();

@@ -4,6 +4,7 @@ const { test, expect, chromium } = require('@playwright/test');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const { installFakeSdk } = require('./helpers/fake-decart.js');
 
 const root = path.join(__dirname, '..');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm' };
@@ -32,7 +33,7 @@ const cameraFrame = (page) => page.frames().find((f) => f.url().includes('camera
 test('panel shows on the page, drags, minimizes, resizes and closes', async () => {
   const context = await launch(); const page = await context.newPage();
   await page.goto(`${base}/tests/fixtures/shop.html`);
-  await injectPanel(page, `${base}/camera/camera.html?nomodels=1`);
+  await injectPanel(page, `${base}/camera/camera.html`);
   await expect(page.locator('#__tryon-panel-host')).toHaveCount(1);
   await expect.poll(() => cameraFrame(page) && cameraFrame(page).url(), { timeout: 10000 }).toContain('embed=1');
   const frame = cameraFrame(page);
@@ -41,7 +42,7 @@ test('panel shows on the page, drags, minimizes, resizes and closes', async () =
   await expect(frame.locator('#statusBadge')).toContainText('Live', { timeout: 15000 });
 
   const start = await panelBox(page);
-  expect(start.w).toBe(440); expect(start.x + start.w).toBeLessThanOrEqual(1280);
+  expect(start.w).toBe(480); expect(start.x + start.w).toBeLessThanOrEqual(1280);
 
   // drag by the title bar
   await page.mouse.move(start.x + 120, start.y + 20); await page.mouse.down(); await page.mouse.move(start.x - 200, start.y + 120, { steps: 6 }); await page.mouse.up();
@@ -68,20 +69,23 @@ test('panel shows on the page, drags, minimizes, resizes and closes', async () =
   await context.close();
 });
 
-test('a garment dragged out of the page and dropped on the panel is worn', async () => {
+test('a garment dragged out of the page and dropped on the panel is sent to the AI session', async () => {
   const context = await launch(); const page = await context.newPage();
+  await page.addInitScript(() => { localStorage.setItem('decartKey', 'dct_test_key'); }); // also runs inside the panel iframe (same origin here)
+  await page.addInitScript(installFakeSdk);
   await page.goto(`${base}/tests/fixtures/shop.html`);
-  await injectPanel(page, `${base}/camera/camera.html?nomodels=1`);
+  await injectPanel(page, `${base}/camera/camera.html`);
   await expect.poll(() => cameraFrame(page) && cameraFrame(page).url(), { timeout: 10000 }).toContain('embed=1');
   const frame = cameraFrame(page);
   await expect(frame.locator('#statusBadge')).toContainText('Live', { timeout: 15000 });
+  await expect(frame.locator('#dropHint')).toBeVisible(); // the cue is visible inside the panel
   // a real mouse drag of the <img> from the shop page into the panel's iframe
   const from = await page.locator('#product').boundingBox(); const to = await frame.locator('.video-wrap').boundingBox();
   await page.mouse.move(from.x + 60, from.y + 60); await page.mouse.down(); await page.mouse.move(from.x + 80, from.y + 80, { steps: 4 });
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 }); await page.mouse.up();
-  await expect.poll(() => frame.evaluate(() => !!(window.__tryOn.overlay && window.__tryOn.overlay.customTexture)), { timeout: 10000 }).toBe(true);
-  const tex = await frame.evaluate(() => { const t = window.__tryOn.overlay.customTexture; const d = t.getContext('2d').getImageData(0, 0, 1, 1).data; return { w: t.width, h: t.height, cornerAlpha: d[3] }; });
-  expect(tex.cornerAlpha).toBeLessThan(200); expect(tex.w).toBeLessThan(200); // white product background removed, cropped
+  await expect.poll(() => frame.evaluate(() => window.__calls.map((c) => c[0]).join(',')), { timeout: 15000 }).toBe('token,connect,setImage');
+  expect(await frame.evaluate(() => window.__calls[2].slice(1, 3))).toEqual([true, true]); // a real image Blob was sent
+  await expect(frame.locator('#aiVideo')).toBeVisible();
   await context.close();
 });
 
@@ -96,7 +100,7 @@ test('installed extension: panel can be embedded in a normal web page (web_acces
     const id = new URL(worker.url()).host;
     const page = await context.newPage();
     await page.goto(`${base}/tests/fixtures/shop.html`);
-    await injectPanel(page, `chrome-extension://${id}/camera/camera.html?nomodels=1`);
+    await injectPanel(page, `chrome-extension://${id}/camera/camera.html`);
     await expect.poll(() => cameraFrame(page) && cameraFrame(page).url(), { timeout: 15000 }).toContain(`chrome-extension://${id}/camera/camera.html`);
     const frame = cameraFrame(page);
     await expect(frame.locator('#statusBadge')).toContainText('Live', { timeout: 30000 }); // camera + all scripts run inside the page

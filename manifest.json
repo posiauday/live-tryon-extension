@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Live Virtual Try-On Pro",
-  "version": "0.5.1",
-  "description": "Prototype live webcam-based virtual try-on Chrome extension.",
+  "version": "0.6.0",
+  "description": "Drag a garment from any shop page onto your live camera and see it on you, powered by Decart Lucy V-TON.",
   "permissions": [
     "tabs",
     "storage",
