@@ -105,3 +105,19 @@ body[data-mode="ai"] #overlayCanvas { display: none; }
 .btn.wide { width: 100%; padding: 11px 14px; }
 [hidden] { display: none !important; }
 .field input[type="text"] { max-width: 170px; }
+
+/* on-page panel (camera.html?embed=1): compact single column */
+.embed body { min-width: 0; }
+.embed .app-shell { max-width: none; padding: 10px 12px 14px; }
+.embed .brand { display: none; }
+.embed .topbar { margin-bottom: 10px; justify-content: flex-end; }
+.embed .main-grid { grid-template-columns: 1fr; gap: 12px; }
+.embed .video-wrap { border-radius: 14px; box-shadow: none; }
+.embed .tip { display: none; }
+.embed .sidebar { gap: 10px; }
+.embed .card { padding: 12px; border-radius: 14px; }
+.embed .dropzone { padding: 12px 10px; }
+.embed .stage-controls { bottom: 10px; }
+.embed .btn-glass { padding: 6px 10px; font-size: 12.5px; }
+.embed .drop-hint { display: none; }
+.embed .status-badge { font-size: 11.5px; }

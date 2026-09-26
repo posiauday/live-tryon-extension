@@ -5,6 +5,11 @@ A prototype Chrome extension focused on a live webcam virtual try-on experience,
 ## Project status
 This project is a functional prototype and demo foundation for a future AI-powered virtual try-on product. It is not a final production-grade solution.
 
+## Using it
+Click the toolbar icon (or press Alt+Shift+T) on any shop page. A floating try-on panel appears **on the page**: drag it by its title bar, minimize it (the title bar keeps showing AI status and cost), make it bigger, or close it. Drag a product image from the page straight into the panel to wear it. On pages where extensions cannot inject (chrome://, the Web Store) it opens as a standalone window instead.
+
+Dragging from a shop needs no extra permission when Chrome hands over the image file; otherwise the panel asks once for access to that image's site.
+
 ## Two modes
 **AI Live (realistic)** uses Decart's Lucy V-TON realtime video model, the same model behind the Anywear extension. Your camera streams to Decart over WebRTC and the edited video comes back with the garment worn and moving with you. No standing back, no fitting maths, real drape and shading.
 1. Create a key at https://platform.decart.ai
@@ -27,7 +32,6 @@ Cost: Decart bills about $0.02 per second while connected. Each session is cappe
 ## Tips
 - Stand 1.5-2 m back so shoulders and hips are visible.
 - Best input: a front-facing photo of a top/dress on a plain or transparent background. Use "Fit as" to pick the garment shape.
-- The launcher opens the try-on in its own popup window (a toolbar popup closes when you drag a file in).
 - Debug: open camera/camera.html?nomodels to skip loading the ML models.
 
 ## Limitations

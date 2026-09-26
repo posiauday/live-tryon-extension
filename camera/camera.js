@@ -14,7 +14,11 @@ let apiKey = '';
 let live = null;
 let currentGarment = null; // { blob } last garment chosen, so it can be (re)applied to the AI session
 let modelsRequested = false;
+const embedded = new URLSearchParams(location.search).has('embed');
+if (embedded) document.documentElement.classList.add('embed');
 const $ = (id) => document.getElementById(id);
+// tell the on-page panel what is going on, so it can show it while minimized
+function postStatus(text) { if (embedded && window.parent !== window) window.parent.postMessage({ tryon: 'status', text }, '*'); }
 const video = $('userVideo');
 const aiVideo = $('aiVideo');
 const canvas = $('overlayCanvas');
@@ -84,6 +88,11 @@ async function startCamera() {
   } catch (error) {
     statusBadge.textContent = 'Camera error';
     errorMessage.textContent = cameraError(error);
+    if (embedded && error.name === 'NotAllowedError' && typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+      const help = document.createElement('button'); help.className = 'btn btn-glass'; help.textContent = 'Allow the camera in a window';
+      help.addEventListener('click', () => chrome.runtime.sendMessage({ type: 'open-tryon' }));
+      errorMessage.append(document.createElement('br'), 'Chrome may not prompt inside a page. Allow it once in the window that opens, then reopen this panel. ', help);
+    }
     errorMessage.hidden = false;
     console.error(error);
   }
@@ -148,6 +157,7 @@ function setAiState(text, tone) {
   aiState.textContent = text; aiState.dataset.tone = tone || '';
   aiBadge.hidden = !text || text === STATE_LABELS.disconnected;
   aiBadge.textContent = `AI · ${text}`;
+  postStatus(text === STATE_LABELS.disconnected ? '' : `AI · ${text}`);
 }
 
 function formatMeter(seconds, cost) { return `${Math.round(seconds)}s · $${cost.toFixed(2)}`; }
@@ -162,7 +172,7 @@ function ensureLive() {
       if (state === 'disconnected') { aiVideo.hidden = true; aiVideo.srcObject = null; }
     },
     onQueue: (q) => setAiState(`In queue · #${q.position} of ${q.queueSize}`, 'warn'),
-    onTick: (seconds, cost) => { aiMeter.textContent = formatMeter(seconds, cost); },
+    onTick: (seconds, cost) => { aiMeter.textContent = formatMeter(seconds, cost); postStatus(`AI · Live · ${formatMeter(seconds, cost)}`); },
     onEnded: (reason) => showToast(`AI session ended: ${reason}`),
     onError: (error) => { console.warn('Decart error', error); showToast(`AI error: ${error.message || error}`); }
   });
@@ -224,23 +234,35 @@ function setMode(next) {
 document.querySelectorAll('#modeSwitch button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
 
 // ---------- garment image input: drag & drop, upload, paste ----------
+// createImageBitmap cannot decode SVG (some shops serve it); fall back to an <img> element.
+async function decodeImage(blob) {
+  try { return await createImageBitmap(blob); } catch (error) {
+    const url = URL.createObjectURL(blob);
+    try {
+      const img = new Image(); img.src = url; await img.decode();
+      if (!img.naturalWidth) { img.width = 1024; img.height = 1024; }
+      return img;
+    } finally { setTimeout(() => URL.revokeObjectURL(url), 10000); }
+  }
+}
 async function bitmapToBlob(bitmap, maxSide = 1024) {
-  const s = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-  const c = document.createElement('canvas'); c.width = Math.round(bitmap.width * s); c.height = Math.round(bitmap.height * s);
+  const bw = bitmap.naturalWidth || bitmap.width, bh = bitmap.naturalHeight || bitmap.height;
+  const s = Math.min(1, maxSide / Math.max(bw, bh));
+  const c = document.createElement('canvas'); c.width = Math.round(bw * s); c.height = Math.round(bh * s);
   c.getContext('2d').drawImage(bitmap, 0, 0, c.width, c.height);
   return new Promise((resolve) => c.toBlob(resolve, 'image/png'));
 }
 
 async function loadGarmentSource(blobOrFile) {
   if (mode === 'ai') {
-    const bitmap = await createImageBitmap(blobOrFile);
+    const bitmap = await decodeImage(blobOrFile);
     currentGarment = { blob: await bitmapToBlob(bitmap) };
     if (!live || !(live.active || live.connected)) { const ok = await startAi(); if (!ok) return; }
     else await applyGarmentToAi();
     return;
   }
   if (!overlay) { showToast('Start the camera first.'); return; }
-  const bitmap = await createImageBitmap(blobOrFile);
+  const bitmap = await decodeImage(blobOrFile);
   overlay.setGarmentImage(bitmap);
   document.querySelectorAll('.chip').forEach((b) => b.classList.remove('active'));
   showToast('Garment loaded. Stand back so your shoulders and hips are in view.');
@@ -249,8 +271,9 @@ async function loadGarmentSource(blobOrFile) {
 // The image URL of something dragged out of a web page (prefers the <img> over a surrounding link).
 function droppedImageUrl(dataTransfer) {
   const html = dataTransfer.getData('text/html');
-  const match = html && html.match(/<img[^>]+src=["']([^"']+)["']/i);
-  let url = match ? match[1] : (dataTransfer.getData('text/uri-list') || dataTransfer.getData('text/plain') || '').split('\n')[0].trim();
+  let src = '';
+  if (html) { try { const img = new DOMParser().parseFromString(html, 'text/html').querySelector('img'); src = img ? (img.getAttribute('src') || '') : ''; } catch (error) { /* fall back to the URL list */ } }
+  let url = src || (dataTransfer.getData('text/uri-list') || dataTransfer.getData('text/plain') || '').split('\n')[0].trim();
   if (url.startsWith('//')) url = `https:${url}`;
   return /^(https?:\/\/|data:image\/)/.test(url) ? url : '';
 }
@@ -321,7 +344,8 @@ document.querySelectorAll('.chip[data-garment]').forEach((chip) => {
   try { const img = new Image(); img.alt = ''; img.src = makeSampleGarment(chip.dataset.garment).toDataURL(); chip.prepend(img); } catch (error) { /* thumbnails are optional */ }
 });
 poseStatus.addEventListener('mouseover', () => { poseStatus.title = poseStatus.textContent; });
-window.addEventListener('beforeunload', stopCamera); // also ends any billed AI session
+window.addEventListener('beforeunload', stopCamera);
+window.addEventListener('pagehide', stopCamera); // panel closed: release the camera and end any billed AI session // also ends any billed AI session
 window.__tryOn = { get overlay() { return overlay; }, get detector() { return detector; }, get segmenter() { return segmenter; }, get running() { return running; }, get mode() { return mode; }, get live() { return live; }, setMode };
 
 (async function init() {

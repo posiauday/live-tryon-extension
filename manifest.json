@@ -1,15 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Live Virtual Try-On Pro",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Prototype live webcam-based virtual try-on Chrome extension.",
   "permissions": [
     "tabs",
-    "storage"
+    "storage",
+    "scripting",
+    "activeTab"
   ],
   "action": {
-    "default_title": "Live Virtual Try-On",
-    "default_popup": "popup/popup.html"
+    "default_title": "Live Try-On (click to show / hide the panel)"
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
@@ -22,5 +23,23 @@
   ],
   "optional_host_permissions": [
     "<all_urls>"
-  ]
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "camera/camera.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+T"
+      },
+      "description": "Show or hide the try-on panel"
+    }
+  }
 }

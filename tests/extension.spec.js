@@ -26,12 +26,6 @@ test('installed extension: CSP allows WebAssembly and the models load', async ()
     // the bundled Decart SDK loads under the extension CSP
     expect(await page.evaluate(() => typeof window.DecartSDK.createDecartClient + '/' + typeof window.DecartSDK.models.realtime)).toBe('function/function');
 
-    // the launcher asks the service worker to open the try-on window
-    const popup = await context.newPage();
-    await popup.goto(`chrome-extension://${id}/popup/popup.html`);
-    const windowsBefore = context.pages().length;
-    await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'open-tryon' }));
-    await expect.poll(() => context.pages().length, { timeout: 10000 }).toBeGreaterThanOrEqual(windowsBefore);
   } finally {
     await context.close();
   }

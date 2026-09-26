@@ -8,22 +8,9 @@ test('manifest is valid MV3', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
   expect(manifest.manifest_version).toBe(3);
   expect(manifest.name).toBeTruthy();
-  expect(manifest.action.default_popup).toBe('popup/popup.html');
-});
-
-test('popup launcher loads without errors', async ({ page }) => {
-  await page.goto(`file://${path.join(root, 'popup/popup.html')}`);
-  await expect(page.locator('body')).toHaveCSS('width', '360px');
-  await expect(page.locator('h1')).toContainText('Live Try-On Pro');
-  await expect(page.locator('#openTryOnBtn')).toBeVisible();
-
-  const errors = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-
-  await page.waitForTimeout(500);
-  expect(errors).toEqual([]);
+  expect(manifest.action.default_popup).toBeUndefined(); // icon click shows the on-page panel
+  expect(manifest.background.service_worker).toBe('background/background.js');
+  expect(manifest.web_accessible_resources[0].resources).toContain('camera/camera.html');
 });
 
 test('camera page loads and initializes', async ({ page }) => {
