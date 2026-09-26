@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Live Virtual Try-On Pro",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Prototype live webcam-based virtual try-on Chrome extension.",
   "permissions": [
-    "tabs"
+    "tabs",
+    "storage"
   ],
   "action": {
     "default_title": "Live Virtual Try-On",
@@ -15,5 +16,11 @@
   },
   "background": {
     "service_worker": "background/background.js"
-  }
+  },
+  "host_permissions": [
+    "https://*.decart.ai/*"
+  ],
+  "optional_host_permissions": [
+    "<all_urls>"
+  ]
 }

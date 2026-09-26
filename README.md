@@ -5,7 +5,17 @@ A prototype Chrome extension focused on a live webcam virtual try-on experience,
 ## Project status
 This project is a functional prototype and demo foundation for a future AI-powered virtual try-on product. It is not a final production-grade solution.
 
-## What it does
+## Two modes
+**AI Live (realistic)** uses Decart's Lucy V-TON realtime video model, the same model behind the Anywear extension. Your camera streams to Decart over WebRTC and the edited video comes back with the garment worn and moving with you. No standing back, no fitting maths, real drape and shading.
+1. Create a key at https://platform.decart.ai
+2. In the extension window choose **AI Live**, paste the key (stored only in this browser) and press **Save**.
+3. Drop a garment image (file, or drag straight from a shop page) onto the camera. It connects and dresses you.
+
+Cost: Decart bills about $0.02 per second while connected. Each session is capped (default 2 min) through a short-lived client token and a client-side timer, and Stop or closing the window disconnects immediately.
+
+**Local preview (free)** is the on-device MediaPipe mesh warp described below. It is approximate, but free and offline.
+
+## What it does (local preview)
 - Full-tab camera page (fixes the extension-popup camera permission problem)
 - **Drag & drop / upload / paste a clothing image** and wear it live
 - Real pose tracking (MediaPipe Pose Landmarker, bundled locally) with One Euro smoothing

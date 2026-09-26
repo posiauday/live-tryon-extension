@@ -83,3 +83,25 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 #poseStatus { cursor: help; }
 
 @media (max-width: 1050px) { body { min-width: 0; } .main-grid { grid-template-columns: 1fr; } }
+
+/* mode switching */
+body[data-mode="ai"] .local-only, body[data-mode="local"] .ai-only { display: none !important; }
+body[data-mode="ai"] #overlayCanvas { display: none; }
+#aiVideo { transform: none; z-index: 1; background: #05070b; }
+#aiVideo[hidden], .ai-badge[hidden] { display: none; }
+.ai-badge { position: absolute; top: 14px; right: 14px; z-index: 2; padding: 5px 12px; border-radius: 999px; background: rgba(10, 12, 17, 0.7); backdrop-filter: blur(10px); color: #fff; font-size: 12px; font-weight: 600; }
+.drop-hint, .drop-overlay, .stage-controls, .toast, .error-message { z-index: 3; }
+.segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.segmented button { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 8px 6px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-weight: 600; }
+.segmented button small { font-size: 10.5px; font-weight: 500; opacity: 0.75; }
+.segmented button.active { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; box-shadow: 0 6px 18px rgba(124, 108, 246, 0.3); }
+.pill { padding: 3px 10px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 11.5px; font-weight: 600; }
+.pill[data-tone="ok"] { background: rgba(52, 211, 153, 0.16); color: var(--ok); }
+.pill[data-tone="warn"] { background: rgba(251, 191, 36, 0.16); color: #fbbf24; }
+.pill[data-tone="bad"] { background: rgba(239, 91, 91, 0.16); color: var(--danger); }
+.key-row { display: flex; gap: 8px; margin: 10px 0 8px; }
+.key-row input, .field input[type="text"] { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text); font: inherit; }
+.btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-color: transparent; color: #fff; }
+.btn.wide { width: 100%; padding: 11px 14px; }
+[hidden] { display: none !important; }
+.field input[type="text"] { max-width: 170px; }

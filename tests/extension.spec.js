@@ -23,6 +23,8 @@ test('installed extension: CSP allows WebAssembly and the models load', async ()
     await expect.poll(() => page.evaluate(() => !!(window.__tryOn.segmenter && window.__tryOn.segmenter.ready)), { timeout: 120000 }).toBe(true);
     expect(await page.locator('#poseStatus').textContent()).not.toMatch(/Unavailable|WebAssembly|CompileError/);
     expect(errors).toEqual([]);
+    // the bundled Decart SDK loads under the extension CSP
+    expect(await page.evaluate(() => typeof window.DecartSDK.createDecartClient + '/' + typeof window.DecartSDK.models.realtime)).toBe('function/function');
 
     // the launcher asks the service worker to open the try-on window
     const popup = await context.newPage();

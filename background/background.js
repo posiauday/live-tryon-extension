@@ -9,7 +9,7 @@ async function openTryOn() {
     await chrome.tabs.update(existing[0].id, { active: true });
     return;
   }
-  await chrome.windows.create({ url: TRYON_URL, type: 'popup', width: 1180, height: 820 });
+  await chrome.windows.create({ url: TRYON_URL, type: 'popup', width: 1200, height: 900 });
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

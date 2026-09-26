@@ -5,13 +5,16 @@
   "scripts": {
     "validate": "node validate-project.js",
     "test:smoke": "playwright test tests/extension-smoke.spec.js",
-    "test:all": "playwright test"
+    "test:all": "playwright test",
+    "build:decart": "esbuild build/decart-entry.js --bundle --format=iife --platform=browser --minify --outfile=vendor/decart/decart-sdk.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",
+    "esbuild": "^0.28.2",
     "playwright": "^1.50.0"
   },
   "dependencies": {
+    "@decartai/sdk": "^0.2.3",
     "@mediapipe/tasks-vision": "^1.0.1"
   }
 }
