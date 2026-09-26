@@ -1,6 +1,5 @@
 const openTryOnBtn = document.getElementById('openTryOnBtn');
 const statusEl = document.getElementById('popupStatus');
-const rememberChoice = document.getElementById('rememberChoice');
 
 openTryOnBtn.addEventListener('click', async () => {
   try {
@@ -11,8 +10,4 @@ openTryOnBtn.addEventListener('click', async () => {
   } catch (error) {
     statusEl.textContent = `${error.name || 'Error'}: ${error.message || 'Unable to open Try-On.'}`;
   }
-});
-
-rememberChoice.addEventListener('change', () => {
-  chrome.storage?.local?.set({ rememberChoice: rememberChoice.checked });
 });

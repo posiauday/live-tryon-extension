@@ -170,6 +170,11 @@ recordBtn.addEventListener('click', () => {
   recorder.onstop = () => { download(URL.createObjectURL(new Blob(recordedChunks, { type: 'video/webm' })), `tryon-${Date.now()}.webm`); recordBtn.textContent = '🎬 Record'; showToast('Recording saved.'); };
   recorder.start(); recordBtn.textContent = '⏹ Stop recording';
 });
+// sample thumbnails on the garment chips
+document.querySelectorAll('.chip[data-garment]').forEach((chip) => {
+  try { const img = new Image(); img.alt = ''; img.src = makeSampleGarment(chip.dataset.garment).toDataURL(); chip.prepend(img); } catch (error) { /* thumbnails are optional */ }
+});
+poseStatus.addEventListener('mouseover', () => { poseStatus.title = poseStatus.textContent; });
 window.addEventListener('beforeunload', stopCamera);
 window.__tryOn = { get overlay() { return overlay; }, get detector() { return detector; }, get segmenter() { return segmenter; }, get running() { return running; } };
 startCamera();

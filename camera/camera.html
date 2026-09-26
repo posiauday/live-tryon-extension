@@ -8,35 +8,82 @@
   </head>
   <body>
     <div class="app-shell">
-      <header class="topbar"><div><p class="eyebrow">AI FASHION DEMO</p><h1>Live Try-On Pro</h1></div><div class="header-controls"><span id="statusBadge" class="status-badge">Camera idle</span><button id="closeCameraBtn" class="close-btn">Stop</button></div></header>
+      <header class="topbar">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 3 6l2 4 2-1v12h10V9l2 1 2-4-5-3a4 4 0 0 1-8 0Z"/></svg>
+          </div>
+          <div>
+            <h1>Live Try-On Pro</h1>
+            <p class="eyebrow">Virtual fitting room</p>
+          </div>
+        </div>
+        <div class="header-controls">
+          <span id="statusBadge" class="status-badge">Camera idle</span>
+          <button id="closeCameraBtn" class="btn btn-ghost">Stop</button>
+        </div>
+      </header>
+
       <main class="main-grid">
-        <section class="video-section">
+        <section class="stage">
           <div class="video-wrap">
-            <video id="userVideo" autoplay playsinline muted></video><canvas id="overlayCanvas"></canvas>
-            <div id="dropHint" class="drop-hint">Drag &amp; drop a clothing image here</div>
+            <video id="userVideo" autoplay playsinline muted></video>
+            <canvas id="overlayCanvas"></canvas>
+            <div id="dropHint" class="drop-hint">Drop a clothing image anywhere</div>
+            <div class="drop-overlay" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+              <span>Release to wear it</span>
+            </div>
+            <div class="stage-controls">
+              <button id="captureBtn" class="btn btn-glass">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 0 1 2-2h1.5l1.2-2h6.6l1.2 2H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+                Capture
+              </button>
+              <button id="recordBtn" class="btn btn-glass">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>
+                Record
+              </button>
+            </div>
             <div id="toast" class="toast" hidden></div>
             <div id="errorMessage" class="error-message" hidden></div>
           </div>
-          <p class="tip">Stand about 1.5&ndash;2 m from the camera so your shoulders and hips are visible. Best results: a front-facing product photo of a top on a plain background.</p>
+          <p class="tip">Stand 1.5&ndash;2&nbsp;m from the camera so your shoulders and hips are in view. Best input: a front-facing photo of a top on a plain background.</p>
         </section>
+
         <aside class="sidebar">
-          <section class="section">
+          <section class="card">
             <h2>Your garment</h2>
-            <div class="actions"><button id="uploadBtn" class="btn-primary">Upload / drop image</button><input id="garmentFile" type="file" accept="image/*" hidden /></div>
-            <p class="hint">Or drag an image onto the camera, or paste one (Ctrl+V).</p>
-            <h2 class="sub">Samples</h2>
-            <div class="chip-group"><button class="chip active" data-garment="hoodie">Hoodie</button><button class="chip" data-garment="shirt">Shirt</button><button class="chip" data-garment="dress">Dress</button><button class="chip" data-garment="jacket">Jacket</button></div>
-            <label class="range-row"><span>Fit as</span><select id="fitType"><option value="hoodie">Hoodie</option><option value="shirt">Shirt / top</option><option value="jacket">Jacket</option><option value="dress">Dress</option></select></label>
+            <button id="uploadBtn" class="dropzone" type="button">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+              <strong>Upload or drop an image</strong>
+              <span>PNG or JPG &middot; you can also paste with Ctrl+V</span>
+            </button>
+            <input id="garmentFile" type="file" accept="image/*" hidden />
+
+            <h3>Samples</h3>
+            <div class="chip-group">
+              <button class="chip active" data-garment="hoodie">Hoodie</button>
+              <button class="chip" data-garment="shirt">Shirt</button>
+              <button class="chip" data-garment="dress">Dress</button>
+              <button class="chip" data-garment="jacket">Jacket</button>
+            </div>
+            <label class="field"><span>Fit as</span>
+              <select id="fitType"><option value="hoodie">Hoodie</option><option value="shirt">Shirt / top</option><option value="jacket">Jacket</option><option value="dress">Dress</option></select>
+            </label>
           </section>
-          <section class="section"><h2>Fit &amp; look</h2>
+
+          <section class="card">
+            <div class="card-head"><h2>Fit &amp; look</h2><button id="resetFitBtn" class="link-btn">Reset</button></div>
             <label class="range-row"><span>Size</span><input type="range" id="sizeRange" min="60" max="160" value="100"></label>
             <label class="range-row"><span>Brightness</span><input type="range" id="brightnessRange" min="0" max="100" value="50"></label>
             <label class="range-row"><span>Motion</span><input type="range" id="motionRange" min="0" max="100" value="55"></label>
             <label class="range-row"><span>Wind</span><input type="range" id="windRange" min="0" max="100" value="30"></label>
-            <button id="resetFitBtn" class="btn-secondary">Reset fit</button>
           </section>
-          <section class="section"><h2>Status</h2><div class="stat-item"><span>Pose:</span><strong id="poseStatus">Loading</strong></div><div class="stat-item"><span>Processing FPS:</span><strong id="fpsCounter">0</strong></div></section>
-          <section class="section actions"><button id="captureBtn" class="btn-secondary">📸 Capture</button><button id="recordBtn" class="btn-secondary">🎬 Record</button></section>
+
+          <section class="card status-card">
+            <div class="stat-item"><span>Pose</span><strong id="poseStatus">Loading</strong></div>
+            <div class="stat-item"><span>Processing FPS</span><strong id="fpsCounter">0</strong></div>
+          </section>
         </aside>
       </main>
     </div>
