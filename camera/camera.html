@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Live Virtual Try-On</title>
+    <link rel="stylesheet" href="camera.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>Live Try-On</h1>
+        </div>
+        <div class="header-controls">
+          <span id="statusBadge" class="status-badge">Initializing...</span>
+          <button id="closeCameraBtn" class="close-btn">Close</button>
+        </div>
+      </header>
+
+      <main class="main-grid">
+        <section class="video-section">
+          <div class="video-wrap">
+            <video id="userVideo" autoplay playsinline muted></video>
+            <canvas id="overlayCanvas" width="640" height="480"></canvas>
+            <div class="error-message" id="errorMessage" style="display: none;"></div>
+          </div>
+        </section>
+
+        <aside class="sidebar">
+          <div class="section">
+            <h2>Garment</h2>
+            <div class="chip-group">
+              <button class="chip active" data-garment="hoodie">Hoodie</button>
+              <button class="chip" data-garment="shirt">Shirt</button>
+              <button class="chip" data-garment="dress">Dress</button>
+              <button class="chip" data-garment="jacket">Jacket</button>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>Controls</h2>
+            <label class="range-row">
+              <span>Motion</span>
+              <input type="range" id="motionRange" min="0" max="100" value="55" />
+            </label>
+            <label class="range-row">
+              <span>Wind</span>
+              <input type="range" id="windRange" min="0" max="100" value="30" />
+            </label>
+            <label class="range-row">
+              <span>Brightness</span>
+              <input type="range" id="brightnessRange" min="0" max="100" value="65" />
+            </label>
+          </div>
+
+          <div class="section">
+            <h2>Status</h2>
+            <div class="stat-item">
+              <span>Pose:</span>
+              <strong id="poseStatus">—</strong>
+            </div>
+            <div class="stat-item">
+              <span>FPS:</span>
+              <strong id="fpsCounter">0</strong>
+            </div>
+          </div>
+
+          <div class="section actions">
+            <button id="captureBtn" class="btn-secondary">📸 Capture</button>
+            <button id="recordBtn" class="btn-secondary">🎬 Record</button>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="../src/pose-detector.js"></script>
+    <script src="../src/body-segmentation.js"></script>
+    <script src="../src/cloth-physics.js"></script>
+    <script src="../src/garment-overlay.js"></script>
+    <script src="camera.js"></script>
+  </body>
+</html>
