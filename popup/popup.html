@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Live Virtual Try-On</title>
+    <title>Live Virtual Try-On Pro</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
@@ -11,7 +11,7 @@
       <header class="topbar">
         <div>
           <p class="eyebrow">AI FASHION DEMO</p>
-          <h1>Live Try-On</h1>
+          <h1>Live Try-On Pro</h1>
         </div>
         <button id="toggleCameraBtn" class="primary-btn">Start Camera</button>
       </header>
@@ -37,10 +37,14 @@
           </div>
 
           <div class="section">
-            <h2>Style</h2>
+            <h2>Physics</h2>
             <label class="range-row">
               <span>Motion</span>
               <input type="range" id="motionRange" min="0" max="100" value="55" />
+            </label>
+            <label class="range-row">
+              <span>Wind</span>
+              <input type="range" id="windRange" min="0" max="100" value="30" />
             </label>
             <label class="range-row">
               <span>Brightness</span>
@@ -48,14 +52,30 @@
             </label>
           </div>
 
+          <div class="section">
+            <h2>Advanced</h2>
+            <div class="stat-item">
+              <span>Pose:</span>
+              <strong id="poseStatus">Detecting...</strong>
+            </div>
+            <div class="stat-item">
+              <span>FPS:</span>
+              <strong id="fpsCounter">0</strong>
+            </div>
+          </div>
+
           <div class="section actions"> 
-            <button id="captureBtn" class="secondary-btn">Capture</button>
-            <button id="recordBtn" class="secondary-btn">Record</button>
+            <button id="captureBtn" class="secondary-btn">📸 Capture</button>
+            <button id="recordBtn" class="secondary-btn">🎬 Record</button>
           </div>
         </aside>
       </main>
     </div>
 
+    <script src="../src/pose-detector.js"></script>
+    <script src="../src/body-segmentation.js"></script>
+    <script src="../src/cloth-physics.js"></script>
+    <script src="../src/garment-overlay.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>
