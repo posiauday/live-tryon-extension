@@ -116,3 +116,5 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .embed .status-badge { font-size: 11.5px; }
 
 .embed .drop-hint { top: 10px; left: 10px; }
+#allowSitesBtn.attention { border-color: #fbbf24; color: #fbbf24; box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.18); }
+#sitesRow { align-items: center; }

@@ -21,7 +21,7 @@ test('camera page is AI-only: one video screen with a drop cue, no local-preview
   await expect(page.locator('#dropHint')).toBeVisible();
   await expect(page.locator('#dropHintText')).toHaveText('Drag a product image here');
   await expect(page.locator('#keyForm')).toBeVisible(); // no key yet
-  for (const removed of ['#modeSwitch', '#overlayCanvas', '.chip', '#motionRange', '#windRange', '#poseStatus', '#fpsCounter']) {
+  for (const removed of ['#modeSwitch', '#overlayCanvas', '.chip', '#motionRange', '#windRange', '#poseStatus', '#fpsCounter', '#uploadBtn', '#fitType', '#garmentDesc']) {
     await expect(page.locator(removed)).toHaveCount(0);
   }
   const errors = [];

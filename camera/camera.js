@@ -22,7 +22,6 @@ const aiVideo = $('aiVideo');
 const statusBadge = $('statusBadge');
 const errorMessage = $('errorMessage');
 const toast = $('toast');
-const fitType = $('fitType');
 const recordBtn = $('recordBtn');
 const aiBadge = $('aiBadge');
 const aiState = $('aiState');
@@ -99,7 +98,7 @@ function drawComposite() {
 }
 
 // ---------- AI session (Decart Lucy V-TON) ----------
-const STATE_LABELS = { connecting: 'Connecting...', connected: 'Connected', generating: 'Live', reconnecting: 'Reconnecting...', disconnected: 'Not connected' };
+const STATE_LABELS = { connecting: 'Connecting...', connected: 'Connected', generating: 'Live', reconnecting: 'Reconnecting...', disconnected: 'Ready' };
 
 function setAiState(text, tone) {
   aiState.textContent = text; aiState.dataset.tone = tone || '';
@@ -158,14 +157,13 @@ function stopAi() {
 async function applyGarmentToAi() {
   if (!live || !live.connected || !currentGarment) return;
   try {
-    await live.setGarment(currentGarment.blob, fitType.value, $('garmentDesc').value);
+    await live.setGarment(currentGarment.blob, currentGarment.kind);
     garmentApplied = true; setGarmentHint();
     showToast('Garment sent. It appears on you within a couple of seconds.');
   } catch (error) { showToast(`Could not set garment: ${error.message || error}`); }
 }
 
 endBtn.addEventListener('click', stopAi);
-[fitType, $('garmentDesc')].forEach((el) => el.addEventListener('change', () => applyGarmentToAi()));
 
 function refreshKeyUI() { $('keyForm').hidden = !!apiKey; $('sessionControls').hidden = !apiKey; }
 $('saveKeyBtn').addEventListener('click', async () => {
@@ -198,55 +196,81 @@ async function bitmapToBlob(bitmap, maxSide = 1024) {
 }
 
 // A garment arrived (file, drag from a page, paste). Store it, then start the AI session or switch garment.
-async function loadGarmentSource(blobOrFile) {
-  currentGarment = { blob: await bitmapToBlob(await decodeImage(blobOrFile)) };
+async function loadGarmentSource(blobOrFile, hint = '') {
+  currentGarment = { blob: await bitmapToBlob(await decodeImage(blobOrFile)), kind: kindFromHint(hint || blobOrFile.name || '') };
   if (!apiKey) { showToast('Garment ready. Paste your Decart API key in the AI session card and press Save to try it on.', 6000); $('apiKeyInput').focus(); return; }
   if (!live || !(live.active || live.connected)) await startAi(); else await applyGarmentToAi();
 }
 
-// The image URL of something dragged out of a web page (prefers the <img> over a surrounding link).
-function droppedImageUrl(dataTransfer) {
+// The image URL of something dragged out of a web page (prefers the <img> over a surrounding link), plus any text
+// that says what it is ("Black leather jacket", "slim-fit-jeans.jpg") so the right kind of garment prompt is used.
+function inspectDrop(dataTransfer) {
   const html = dataTransfer.getData('text/html');
-  let src = '';
-  if (html) { try { const img = new DOMParser().parseFromString(html, 'text/html').querySelector('img'); src = img ? (img.getAttribute('src') || '') : ''; } catch (error) { /* fall back to the URL list */ } }
+  let src = '', alt = '';
+  if (html) { try { const img = new DOMParser().parseFromString(html, 'text/html').querySelector('img'); if (img) { src = img.getAttribute('src') || ''; alt = `${img.getAttribute('alt') || ''} ${img.getAttribute('title') || ''}`; } } catch (error) { /* fall back to the URL list */ } }
   let url = src || (dataTransfer.getData('text/uri-list') || dataTransfer.getData('text/plain') || '').split('\n')[0].trim();
   if (url.startsWith('//')) url = `https:${url}`;
-  return /^(https?:\/\/|data:image\/)/.test(url) ? url : '';
+  if (!/^(https?:\/\/|data:image\/)/.test(url)) url = '';
+  let name = ''; try { name = url.startsWith('http') ? decodeURIComponent(new URL(url).pathname.split('/').pop() || '') : ''; } catch (error) { /* ignore */ }
+  return { url, hint: `${alt} ${name}`.trim() };
 }
 
 async function fetchImageBlob(url) {
-  const attempt = async () => { const response = await fetch(url); if (!response.ok) throw new Error(`HTTP ${response.status}`); const blob = await response.blob(); if (!blob.type.startsWith('image/')) throw new Error('not an image'); return blob; };
-  try { return await attempt(); } catch (error) {
-    // Cross-origin: ask once for access to that site (optional host permission), then retry.
-    if (url.startsWith('http') && typeof chrome !== 'undefined' && chrome.permissions) {
-      const granted = await chrome.permissions.request({ origins: [`${new URL(url).origin}/*`] });
-      if (granted) return attempt();
-    }
-    throw error;
-  }
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const blob = await response.blob();
+  if (!blob.type.startsWith('image/')) throw new Error('not an image');
+  return blob;
 }
 
 async function handleDrop(dataTransfer) {
   try {
     const file = Array.from(dataTransfer.files || []).find((f) => f.type.startsWith('image/'));
-    if (file) { await loadGarmentSource(file); return; }
-    const url = droppedImageUrl(dataTransfer);
+    if (file) { await loadGarmentSource(file, file.name); return; }
+    const { url, hint } = inspectDrop(dataTransfer);
     if (!url) { showToast('Drop an image (PNG or JPG).'); return; }
-    await loadGarmentSource(await fetchImageBlob(url));
+    await loadGarmentSource(await fetchImageBlob(url), hint || url);
   } catch (error) {
-    showToast('Could not read that image. Save it to your computer and drop the file, or use Upload.');
-    console.warn(error);
+    showSitesHelp(); console.warn(error);
   }
 }
+
+// ---------- drops forwarded by the on-page panel ----------
+// Chrome does not deliver drag events from the shop page into this iframe, so content/panel.js catches the drop on the
+// page and sends it here with chrome.runtime.sendMessage (a web page cannot forge those).
+const pid = new URLSearchParams(location.search).get('pid');
+let sitesGranted = false;
+function showSitesHelp() {
+  showToast(sitesGranted ? 'Could not read that image. Try another one, or save it and drop the file.' : 'Chrome cannot read images from that site yet. Click "Allow dragging from all sites" in the AI session card, then drop again.', 7000);
+  const b = $('allowSitesBtn'); if (b && !$('sitesRow').hidden) { b.classList.add('attention'); b.scrollIntoView({ block: 'nearest' }); }
+}
+async function handleForwardedDrop(msg) {
+  try {
+    if (msg.kind === 'data') await loadGarmentSource(await (await fetch(msg.dataUrl)).blob(), msg.hint);
+    else if (msg.kind === 'url') await loadGarmentSource(await fetchImageBlob(msg.url), msg.hint || msg.url);
+  } catch (error) { showSitesHelp(); console.warn(error); }
+}
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+  chrome.runtime.onMessage.addListener((msg, sender) => {
+    if (!msg || msg.type !== 'tryon-drop' || !pid || msg.pid !== pid || sender.id !== chrome.runtime.id) return;
+    handleForwardedDrop(msg);
+  });
+}
+async function refreshSitesUI() {
+  const row = $('sitesRow');
+  if (typeof chrome === 'undefined' || !chrome.permissions || !chrome.permissions.contains) { row.hidden = true; return; }
+  try { sitesGranted = await chrome.permissions.contains({ origins: ['<all_urls>'] }); row.hidden = sitesGranted; } catch (error) { row.hidden = true; }
+}
+$('allowSitesBtn').addEventListener('click', async () => { // a click is the user gesture Chrome requires for this prompt
+  try { if (await chrome.permissions.request({ origins: ['<all_urls>'] })) showToast('Done. You can drag images from any shop site now.'); } catch (error) { showToast('Could not change the permission.'); }
+  $('allowSitesBtn').classList.remove('attention'); refreshSitesUI();
+});
 
 const videoWrap = document.querySelector('.video-wrap');
 ['dragenter', 'dragover'].forEach((type) => document.addEventListener(type, (e) => { e.preventDefault(); videoWrap.classList.add('dragging'); }));
 ['dragleave', 'drop'].forEach((type) => document.addEventListener(type, (e) => { e.preventDefault(); if (type === 'drop' || e.target === document.documentElement || !e.relatedTarget) videoWrap.classList.remove('dragging'); }));
 document.addEventListener('drop', (e) => handleDrop(e.dataTransfer));
 document.addEventListener('paste', (e) => { const item = Array.from(e.clipboardData?.items || []).find((i) => i.type.startsWith('image/')); if (item) loadGarmentSource(item.getAsFile()); });
-const fileInput = $('garmentFile');
-$('uploadBtn').addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadGarmentSource(fileInput.files[0]); fileInput.value = ''; });
 $('closeCameraBtn').addEventListener('click', stopCamera);
 
 // ---------- capture / record ----------
@@ -271,6 +295,6 @@ window.__tryOn = { get running() { return running; }, get live() { return live; 
 
 (async function init() {
   apiKey = (await store.get('decartKey')) || '';
-  refreshKeyUI(); setGarmentHint();
+  refreshKeyUI(); setGarmentHint(); refreshSitesUI();
   startCamera();
 })();

@@ -3,11 +3,19 @@
 // Bundled SDK: vendor/decart/decart-sdk.js (build: npm run build:decart).
 const DECART_PRICE_PER_SECOND = 0.02; // USD, 720p realtime generation (Decart public pricing)
 
+// What is being worn, guessed from the product's alt text / file name ("black-leather-jacket.jpg" -> top).
+// There is no type picker: dragging a picture is the whole interface.
+function kindFromHint(hint) {
+  const t = String(hint || '').toLowerCase();
+  if (/\b(dress|gown|jumpsuit|romper|skirt|kaftan|abaya|saree|sari|lehenga|kurta set)\b/.test(t)) return 'dress';
+  if (/\b(jeans?|pants?|trousers?|chinos?|joggers?|leggings?|shorts|denim|cargo|sweatpants|bottoms?)\b/.test(t)) return 'pants';
+  return 'shirt';
+}
+
 function garmentPrompt(kind, description) {
-  const target = kind === 'dress' ? 'outfit' : 'top';
-  const base = kind === 'dress'
-    ? 'Substitute the current outfit with the dress shown in the reference image'
-    : `Substitute the current ${target} with the garment shown in the reference image`;
+  const base = kind === 'dress' ? 'Substitute the current outfit with the dress shown in the reference image'
+    : kind === 'pants' ? 'Substitute the current pants with the pants shown in the reference image'
+      : 'Substitute the current top with the garment shown in the reference image';
   const extra = (description || '').trim();
   return extra ? `${base}: ${extra}` : base;
 }
@@ -67,5 +75,5 @@ class DecartLive {
     this.rt = null; this.client = null; this.active = false; this.handleState('disconnected');
   }
 }
-if (typeof window !== 'undefined') { window.DecartLive = DecartLive; window.garmentPrompt = garmentPrompt; }
-if (typeof module !== 'undefined') module.exports = { DecartLive, garmentPrompt };
+if (typeof window !== 'undefined') { window.DecartLive = DecartLive; window.garmentPrompt = garmentPrompt; window.kindFromHint = kindFromHint; }
+if (typeof module !== 'undefined') module.exports = { DecartLive, garmentPrompt, kindFromHint };

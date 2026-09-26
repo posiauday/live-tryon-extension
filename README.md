@@ -10,8 +10,7 @@ WebRTC and the edited video comes back with the garment worn and the fabric movi
 3. On any shop page click the toolbar icon (or press **Alt+Shift+T**). A floating try-on panel appears **on the page**:
    drag it by the title bar, minimize it (the title bar keeps showing status and cost), make it bigger, or close it.
 4. Paste your key once (**AI session** card -> Save; it is stored only in this browser) and allow the camera.
-5. Drag a product image from the page into the panel (or use **Upload**, or paste with Ctrl+V). The AI session starts
-   when you drop the garment and the try-on replaces the camera in the same screen. Drop another image to switch garments.
+5. Drag a product image from the page onto the panel (or paste one with Ctrl+V). While you drag, a "Drop here to wear it" area covers the panel. The AI session starts when you drop, and the try-on replaces the camera in the same screen. Drop another image to switch garments. There is no upload form or type picker: what it is (top, pants, dress) is guessed from the image's alt text and file name.
 
 Chrome does not let extensions run on `chrome://` pages or the Web Store. There the icon shows a red **!**; its tooltip
 explains why. The extension never opens a window on its own.

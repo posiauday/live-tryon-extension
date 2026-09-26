@@ -57,7 +57,7 @@ test('panel shows on the page, drags, minimizes, resizes and closes', async () =
 
   // bigger / smaller
   await page.locator('#__tryon-panel-host button[data-act="size"]').click();
-  expect((await panelBox(page)).w).toBe(760);
+  expect((await panelBox(page)).w).toBe(780);
 
   // status from the iframe shows in the title bar (visible while minimized)
   await frame.evaluate(() => postStatus('AI · Live · 12s · $0.24'));
@@ -66,26 +66,6 @@ test('panel shows on the page, drags, minimizes, resizes and closes', async () =
   // close removes it
   await page.locator('#__tryon-panel-host button[data-act="close"]').click();
   await expect(page.locator('#__tryon-panel-host')).toHaveCount(0);
-  await context.close();
-});
-
-test('a garment dragged out of the page and dropped on the panel is sent to the AI session', async () => {
-  const context = await launch(); const page = await context.newPage();
-  await page.addInitScript(() => { localStorage.setItem('decartKey', 'dct_test_key'); }); // also runs inside the panel iframe (same origin here)
-  await page.addInitScript(installFakeSdk);
-  await page.goto(`${base}/tests/fixtures/shop.html`);
-  await injectPanel(page, `${base}/camera/camera.html`);
-  await expect.poll(() => cameraFrame(page) && cameraFrame(page).url(), { timeout: 10000 }).toContain('embed=1');
-  const frame = cameraFrame(page);
-  await expect(frame.locator('#statusBadge')).toContainText('Live', { timeout: 15000 });
-  await expect(frame.locator('#dropHint')).toBeVisible(); // the cue is visible inside the panel
-  // a real mouse drag of the <img> from the shop page into the panel's iframe
-  const from = await page.locator('#product').boundingBox(); const to = await frame.locator('.video-wrap').boundingBox();
-  await page.mouse.move(from.x + 60, from.y + 60); await page.mouse.down(); await page.mouse.move(from.x + 80, from.y + 80, { steps: 4 });
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 }); await page.mouse.up();
-  await expect.poll(() => frame.evaluate(() => window.__calls.map((c) => c[0]).join(',')), { timeout: 15000 }).toBe('token,connect,setImage');
-  expect(await frame.evaluate(() => window.__calls[2].slice(1, 3))).toEqual([true, true]); // a real image Blob was sent
-  await expect(frame.locator('#aiVideo')).toBeVisible();
   await context.close();
 });
 
@@ -104,7 +84,7 @@ test('installed extension: panel can be embedded in a normal web page (web_acces
     await expect.poll(() => cameraFrame(page) && cameraFrame(page).url(), { timeout: 15000 }).toContain(`chrome-extension://${id}/camera/camera.html`);
     const frame = cameraFrame(page);
     await expect(frame.locator('#statusBadge')).toContainText('Live', { timeout: 30000 }); // camera + all scripts run inside the page
-    await expect(frame.locator('#uploadBtn')).toBeVisible();
+    await expect(frame.locator('#dropHint')).toBeVisible();
   } finally { await context.close(); }
 });
 
@@ -145,7 +125,7 @@ test('toolbar click puts the panel ON the page and opens no new window', async (
     await clickToolbar(worker, 'http://127.0.0.1/*');
     await expect(page.locator('#__tryon-panel-host')).toHaveCount(1, { timeout: 10000 });
     await expect.poll(() => cameraFrame(page) && cameraFrame(page).url(), { timeout: 15000 }).toContain(`chrome-extension://${id}/camera/camera.html?embed=1`);
-    await expect(cameraFrame(page).locator('#uploadBtn')).toBeVisible({ timeout: 20000 });
+    await expect(cameraFrame(page).locator('#dropHint')).toBeVisible({ timeout: 20000 });
     expect(context.pages().length).toBe(pagesBefore); // no extra window or tab
     // a second click keeps a single panel
     await clickToolbar(worker, 'http://127.0.0.1/*');
@@ -168,5 +148,38 @@ test('when the panel cannot be injected it says so on the icon and does NOT open
     const badge = await worker.evaluate((tabId) => chrome.action.getBadgeText({ tabId }), tabId);
     const title = await worker.evaluate((tabId) => chrome.action.getTitle({ tabId }), tabId);
     expect(badge).toBe('!'); expect(title).toContain('Could not open the panel');
+  } finally { await context.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// The case that matters: in real Chrome the panel iframe is an out-of-process extension frame and receives NO drag events
+// from the page, so the drop is caught by a drop zone on the page and forwarded with chrome.runtime messaging.
+test('a real mouse drag of a product image from the shop page into the installed extension\'s panel starts the AI session', async () => {
+  test.setTimeout(90000);
+  const dir = extensionCopyWithHost('http://127.0.0.1/*');
+  const { context, worker, id } = await launchWithExtension(dir);
+  try {
+    await worker.evaluate(() => chrome.storage.local.set({ decartKey: 'dct_test_key' }));
+    const page = await context.newPage();
+    await page.addInitScript(installFakeSdk); // also runs inside the extension iframe
+    await page.goto(`${base}/tests/fixtures/shop.html`);
+    await clickToolbar(worker, 'http://127.0.0.1/*');
+    await expect.poll(() => cameraFrame(page) && cameraFrame(page).url(), { timeout: 15000 }).toContain(`chrome-extension://${id}/camera/camera.html?embed=1&pid=`);
+    const frame = cameraFrame(page);
+    await expect(frame.locator('#statusBadge')).toContainText('Live', { timeout: 20000 });
+    await expect(frame.locator('#aiState')).toHaveText('Ready');
+    await expect(frame.locator('#dropHint')).toBeVisible(); // the cue is visible on the video
+    expect(await frame.evaluate(() => window.__calls.length)).toBe(0); // nothing billed yet
+
+    // real mouse drag: the <img> on the page -> onto the panel
+    const from = await page.locator('#product').boundingBox(); const to = await frame.locator('.video-wrap').boundingBox();
+    await page.mouse.move(from.x + 60, from.y + 60); await page.mouse.down(); await page.mouse.move(from.x + 80, from.y + 80, { steps: 4 });
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+    await expect(page.locator('#__tryon-panel-host .dz')).toBeVisible(); // the drop zone appears over the panel while dragging
+    await page.mouse.up();
+
+    await expect.poll(() => frame.evaluate(() => window.__calls.map((c) => c[0]).join(',')), { timeout: 20000 }).toBe('token,connect,setImage');
+    expect(await frame.evaluate(() => window.__calls[2].slice(1, 4))).toEqual([true, true, 'Substitute the current top with the garment shown in the reference image']);
+    await expect(frame.locator('#aiVideo')).toBeVisible(); // try-on shown in the same screen
+    await expect(page.locator('#__tryon-panel-host .dz')).toBeHidden(); // drop zone is gone again
   } finally { await context.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
