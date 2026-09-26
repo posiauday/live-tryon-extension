@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "🎭 Live Virtual Try-On Pro",
+  "version": "1.0.0",
+  "description": "Real-time 3D interactive clothing try-on with physics simulation and pose tracking",
+  
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
+  
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Live Virtual Try-On",
+    "default_icon": {
+      "16": "images/icon16.png",
+      "48": "images/icon48.png",
+      "128": "images/icon128.png"
+    }
+  },
+  
+  "background": {
+    "service_worker": "background/background.js"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  
+  "icons": {
+    "16": "images/icon16.png",
+    "48": "images/icon48.png",
+    "128": "images/icon128.png"
+  },
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["libs/*", "src/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
