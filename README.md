@@ -4,6 +4,14 @@ Drag a garment from any shop page onto your live camera and see it on you, movin
 **Lucy V-TON** real-time video model, the same model behind the Anywear extension: your camera streams to Decart over
 WebRTC and the edited video comes back with the garment worn and the fabric moving. No standing back, no fitting maths.
 
+## Two modes (a switch at the top of the panel)
+* **Live AI (Decart, paid)**: the realistic live video described below. Unchanged.
+* **Free (on your PC)**: no billing, no upload. Your own GPU makes **one AI photo of you in the garment** (a "keyframe"),
+  then the extension tracks your pose in the browser and bends the garment onto you live (about 20-30 FPS). When you move to a
+  pose it has not seen (arms up, turned), it makes another keyframe in the background and blends between them. It is a good
+  "sticker on a photo" effect, not Decart-level realism. It needs the small local server in `server/`: see
+  [server/README.md](server/README.md), and the design in [docs/ROADMAP-free-tryon.md](docs/ROADMAP-free-tryon.md).
+
 ## Using it
 1. Get a Decart API key at https://platform.decart.ai (new accounts get a little free credit).
 2. Load the extension: `chrome://extensions` -> Developer mode -> **Load unpacked** -> select this folder.

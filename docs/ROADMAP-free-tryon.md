@@ -3,6 +3,20 @@
 Status: research + plan, written September 2026. Nothing here is built yet except the paid Decart "AI Live" mode.
 Anything I could not verify is marked **(unverified)**. Ideas that are mine and not from a paper are marked **(hypothesis)**.
 
+## 0. Status (updated)
+
+Built and unit/end-to-end tested with a mock AI server (no real model has been run yet):
+* Mode switch **Live AI (Decart) | Free (your PC)** in the extension, Decart mode untouched.
+* Local server `server/tryon_server.py` (mock engine + CatVTON engine, CatVTON part **untested on real weights**).
+* Free pipeline: 3-2-1 countdown, portrait crop, keyframe request, garment cut-out (multiclass segmentation restricted to what
+  changed), **MLS warp** on a 12x14 mesh driven by shoulders/elbows/wrists/hips, WebGL renderer with a Canvas 2D fallback,
+  light matching, arms/head drawn over the garment, **pose-indexed keyframe bank** (up to 6, cross-fade, hysteresis),
+  automatic background keyframes for new poses, cancel/reset, clear errors, no automatic retries.
+* Experimental (**off by default**): local Lucas-Kanade tracking so the fabric follows real texture. Unit-tested on synthetic
+  motion; not yet compared on real footage.
+Not built yet: relighting with normals, edge-harmonizer network, per-person distilled student, dense body mapping, cloud tier.
+Next real step: run the CatVTON engine on the 8 GB GPU and judge the result on a live webcam (needs a multi-GB download).
+
 ## 1. Verdict
 
 * A free, on-device **6/10** live try-on is realistic: one AI-generated keyframe of you wearing the garment, then tracked and

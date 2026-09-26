@@ -6,7 +6,7 @@
     <title>Live Virtual Try-On</title>
     <link rel="stylesheet" href="camera.css" />
   </head>
-  <body>
+  <body data-mode="ai">
     <div class="app-shell">
       <header class="topbar">
         <div class="brand">
@@ -29,8 +29,10 @@
           <div class="video-wrap">
             <!-- one screen: your camera until the AI output arrives, then the try-on in the same place -->
             <video id="userVideo" autoplay playsinline muted></video>
+            <canvas id="overlayCanvas" class="free-only"></canvas>
             <video id="aiVideo" autoplay playsinline muted hidden></video>
             <div id="aiBadge" class="ai-badge" hidden></div>
+            <div id="freeOverlay" class="free-overlay" hidden><div id="freeOverlayBig" class="free-big"></div><div id="freeOverlayText" class="free-text"></div></div>
             <div id="dropHint" class="drop-hint">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-8 8"/></svg>
               <span id="dropHintText">Drag a product image here</span>
@@ -56,7 +58,25 @@
         </section>
 
         <aside class="sidebar">
-          <section class="card" id="aiCard">
+          <div class="segmented" id="modeSwitch" role="tablist">
+            <button data-mode="ai" role="tab" class="active">Live AI <small>Decart &middot; paid</small></button>
+            <button data-mode="free" role="tab">Free <small>on your PC</small></button>
+          </div>
+
+          <section class="card free-only" id="freeCard">
+            <div class="card-head"><h2>Free mode</h2><span id="freePhase" class="pill">Drop a garment</span></div>
+            <p class="hint">Your PC makes one AI photo of you in the garment, then it is tracked live as you move. Nothing is uploaded and nothing is billed.</p>
+            <div class="stat-item"><span>Try-on server</span><span id="freeBackendState" class="pill">Checking...</span></div>
+            <div class="stat-item"><span>Address</span><strong id="freeBackendUrl">http://127.0.0.1:7861</strong></div>
+            <div class="stat-item"><span>Pose models</span><strong id="freeModels">Not loaded</strong></div>
+            <div class="stat-item"><span>Keyframes (angles)</span><strong id="freeBank">0 / 6</strong></div>
+            <div class="stat-item"><span>Frames per second</span><strong id="freeFps">0</strong></div>
+            <label class="check"><input type="checkbox" id="optTracking" /> Fabric follows your motion <em>(experimental, compare on/off)</em></label>
+            <label class="check"><input type="checkbox" id="optAngles" checked /> Add new angles automatically</label>
+            <div class="btn-row"><button id="freeCheckBtn" class="btn btn-ghost">Check server</button><button id="freeResetBtn" class="btn btn-ghost">Remove garment</button></div>
+            <p class="hint">Server not running? In the extension folder run <code>python server/tryon_server.py</code> (see <code>server/README.md</code>).</p>
+          </section>
+          <section class="card ai-only" id="aiCard">
             <div class="card-head"><h2>AI session</h2><span id="aiState" class="pill">Ready</span></div>
             <div id="keyForm">
               <p class="hint">Powered by Decart Lucy V-TON, the model behind Anywear. Paste your Decart API key (kept only in this browser).</p>
@@ -73,6 +93,6 @@
         </aside>
       </main>
     </div>
-    <script src="../vendor/decart/decart-sdk.js"></script><script src="../src/decart-live.js"></script><script src="camera.js"></script>
+    <script src="../vendor/decart/decart-sdk.js"></script><script src="../src/decart-live.js"></script><script src="../src/mediapipe-loader.js"></script><script src="../src/pose-detector.js"></script><script src="../src/body-segmentation.js"></script><script src="../src/free/mls.js"></script><script src="../src/free/keyframe-bank.js"></script><script src="../src/free/garment-layer.js"></script><script src="../src/free/flow-refine.js"></script><script src="../src/free/mesh-renderer.js"></script><script src="../src/free/backend.js"></script><script src="../src/free/free-pipeline.js"></script><script src="free-mode.js"></script><script src="camera.js"></script>
   </body>
 </html>

@@ -14,14 +14,17 @@ test('manifest is valid MV3', () => {
   expect(manifest.web_accessible_resources[0].resources).toContain('camera/camera.html');
 });
 
-test('camera page is AI-only: one video screen with a drop cue, no local-preview controls', async ({ page }) => {
+test('camera page opens in the Decart mode by default: one video screen, a drop cue, no upload form; Free mode is one click away', async ({ page }) => {
   await page.goto(`file://${path.join(root, 'camera/camera.html')}`);
   await expect(page.locator('h1')).toContainText('Live Try-On Pro');
+  await expect(page.locator('body')).toHaveAttribute('data-mode', 'ai');
   await expect(page.locator('#userVideo')).toBeVisible();
   await expect(page.locator('#dropHint')).toBeVisible();
   await expect(page.locator('#dropHintText')).toHaveText('Drag a product image here');
   await expect(page.locator('#keyForm')).toBeVisible(); // no key yet
-  for (const removed of ['#modeSwitch', '#overlayCanvas', '.chip', '#motionRange', '#windRange', '#poseStatus', '#fpsCounter', '#uploadBtn', '#fitType', '#garmentDesc']) {
+  await expect(page.locator('#aiCard')).toBeVisible(); await expect(page.locator('#freeCard')).toBeHidden(); await expect(page.locator('#overlayCanvas')).toBeHidden();
+  await expect(page.locator('#modeSwitch button')).toHaveCount(2);
+  for (const removed of ['.chip', '#motionRange', '#windRange', '#poseStatus', '#fpsCounter', '#uploadBtn', '#fitType', '#garmentDesc']) {
     await expect(page.locator(removed)).toHaveCount(0);
   }
   const errors = [];

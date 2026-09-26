@@ -10,6 +10,7 @@ let apiKey = '';
 let live = null;
 let currentGarment = null; // { blob } last garment chosen, re-applied when the fit type / description changes
 let garmentApplied = false;
+let mode = 'ai'; // 'ai' = Decart live (paid) | 'free' = your PC (AI keyframes + live tracking)
 const TRY_ON_SECONDS = 60; // every garment gets exactly one minute, then it is removed and everything resets
 let countdown = null;
 const embedded = new URLSearchParams(location.search).has('embed');
@@ -32,6 +33,7 @@ const endBtn = $('aiStartBtn'); // "End session"
 const dropHintText = $('dropHintText');
 
 // ---------- small helpers ----------
+window.postStatus = postStatus;
 const store = {
   async get(key) {
     try { if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) { const r = await chrome.storage.local.get(key); return r[key]; } } catch (e) { /* fall through */ }
@@ -52,6 +54,7 @@ function showToast(text, ms = 4000) {
   toast.textContent = text; toast.hidden = false;
   clearTimeout(showToast.timer); showToast.timer = setTimeout(() => { toast.hidden = true; }, ms);
 }
+window.showToast = showToast;
 
 // ---------- camera ----------
 async function startCamera() {
@@ -78,6 +81,7 @@ async function startCamera() {
 function stopCamera() {
   running = false;
   stopAi();
+  if (window.freeMode) freeMode.leave();
   if (recorder && recorder.state !== 'inactive') recorder.stop();
   if (stream) stream.getTracks().forEach((track) => track.stop());
   stream = null; video.srcObject = null; statusBadge.textContent = 'Camera stopped';
@@ -95,6 +99,7 @@ function drawComposite() {
   if (ai) { ctx.drawImage(aiVideo, 0, 0, w, h); return composite; } // the AI stream is already mirrored
   ctx.setTransform(-1, 0, 0, 1, w, 0); // match the mirrored on-screen view
   ctx.drawImage(video, 0, 0, w, h);
+  if (mode === 'free') ctx.drawImage($('overlayCanvas'), 0, 0, w, h);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   return composite;
 }
@@ -227,6 +232,7 @@ async function bitmapToBlob(bitmap, maxSide = 1024) {
 // A garment arrived (file, drag from a page, paste). Store it, then start the AI session or switch garment.
 async function loadGarmentSource(blobOrFile, hint = '') {
   const garment = { blob: await bitmapToBlob(await decodeImage(blobOrFile)), kind: kindFromHint(hint || blobOrFile.name || '') };
+  if (mode === 'free') { window.freeMode.setGarment(garment.blob, garment.kind); return; } // free mode: AI keyframe on your PC
   if (live && (live.active || live.connected)) stopAi(); // switching garments: end the old minute, start a fresh one
   currentGarment = garment;
   if (!apiKey) { showToast('Garment ready. Paste your Decart API key in the AI session card and press Save to try it on.', 6000); $('apiKeyInput').focus(); return; }
@@ -320,12 +326,29 @@ recordBtn.addEventListener('click', () => {
   recorder.start(); recordTimer = setInterval(drawComposite, 1000 / 30); recordBtn.textContent = '⏹ Stop recording';
 });
 
+// ---------- mode switch ----------
+function setMode(next) {
+  if (next === mode && document.body.dataset.mode === next) return;
+  if (mode === 'ai' && next === 'free') stopAi();
+  if (mode === 'free' && next === 'ai') freeMode.leave();
+  mode = next; document.body.dataset.mode = next;
+  document.querySelectorAll('#modeSwitch button').forEach((b) => b.classList.toggle('active', b.dataset.mode === next));
+  $('tipText').textContent = next === 'free'
+    ? 'Free mode: drop a product image on the video, hold still for the 3-2-1, and your PC makes one AI photo of you in it (about 15-45 s). Then it follows you live. Nothing is billed.'
+    : 'Drag a product image from any shop page onto the video. You get 1 minute to try it on live; then the garment is removed and it resets. Drop another image to start a new minute.';
+  if (next === 'free' && running) freeMode.enter({ video, canvas: $('overlayCanvas') });
+  store.set('mode', next);
+}
+document.querySelectorAll('#modeSwitch button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
 window.addEventListener('beforeunload', stopCamera); // also ends any billed AI session
 window.addEventListener('pagehide', stopCamera); // panel closed: release the camera and end any billed AI session
-window.__tryOn = { get running() { return running; }, get live() { return live; }, get garmentApplied() { return garmentApplied; } };
+window.__tryOn = { get running() { return running; }, get live() { return live; }, get garmentApplied() { return garmentApplied; }, get mode() { return mode; }, setMode, get free() { return window.freeMode; } };
 
 (async function init() {
   apiKey = (await store.get('decartKey')) || '';
   refreshKeyUI(); setGarmentHint(); refreshSitesUI();
-  startCamera();
+  const savedMode = await store.get('mode'); if (savedMode === 'free') { mode = 'ai'; setMode('free'); }
+  await startCamera();
+  if (mode === 'free' && running) freeMode.enter({ video, canvas: $('overlayCanvas') });
 })();
