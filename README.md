@@ -1,45 +1,46 @@
 # Live Virtual Try-On Extension
 
-A prototype Chrome extension that shows a live webcam feed with a draggable virtual garment overlay. This is a strong foundation for a more advanced AI-powered wardrobe try-on product, but it is not a full production-grade garment fitting engine.
+A prototype Chrome extension focused on a live webcam virtual try-on experience, with interactive garment overlay, motion physics, and camera-based experimentation.
 
-## What this prototype includes
-- Live webcam access through the extension popup
-- Garment style switching (hoodie, shirt, dress, jacket)
+## Project status
+This project is a functional prototype and demo foundation for a future AI-powered virtual try-on product. It is not a final production-grade solution.
+
+## Features currently included
+- Webcam access from a Chrome extension popup
+- Selectable garment overlays (hoodie, shirt, dress, jacket)
 - Motion and brightness controls
+- Wind simulation control
+- Drag and reposition interaction on the garment overlay
 - Screenshot capture
-- Lightweight overlay system for real-time preview
+- Pose detection, segmentation, and cloth simulation hooks
 
-## What this prototype does not include yet
-- Real 3D garment cloth simulation
-- Bone/pose-based garment fitting
-- Accurate body segmentation and garment wrapping
-- Product catalog and shopping flows
-- Real AI garment generation or model inference
-- Full Chrome Web Store compliance and final deployment review
+## Important limitations
+- This is not a full commercial-grade virtual try-on engine yet
+- It does not use a production-trained garment fitting model
+- The body segmentation and cloth simulation are simplified prototype logic
+- It does not yet include real 3D garment assets or a full AI backend
+- It is not yet Chrome Web Store ready without compliance and packaging review
 
-## Architecture overview
-- `manifest.json` – extension metadata and permissions
-- `popup/popup.html` – extension UI
-- `popup/popup.css` – styling
-- `popup/popup.js` – camera and overlay behavior
-- `content/content.js` – content-script hook for injection pages
-- `background/background.js` – service worker lifecycle
+## Tech stack
+- Chrome Extension Manifest V3
+- JavaScript
+- HTML/CSS
+- MediaPipe pose detection (prototype integration)
+- Custom body segmentation and cloth simulation prototypes
 
 ## Local setup
 1. Open Chrome and go to `chrome://extensions/`
-2. Enable **Developer mode**
+2. Enable Developer mode
 3. Click **Load unpacked**
 4. Select this repository folder
 5. Open the extension popup and allow camera access
 
-## Notes
-This project is intentionally scoped as a prototype and a demonstration platform. A production-ready live try-on app needs additional work around:
-- 3D garment meshes
-- pose estimation and body tracking
-- cloth physics
-- segmentation / alpha masking
-- backend GPU infrastructure
-- product and commerce workflows
+## Future roadmap
+1. Replace the simplified cloth logic with a production-level 3D garment simulation
+2. Add real body segmentation / mask tracking
+3. Integrate a real AI garment fitting backend
+4. Add product catalog, shopping flow, and metrics
+5. Package and prepare for Chrome Web Store submission
 
 ## License
 MIT
