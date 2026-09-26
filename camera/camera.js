@@ -19,6 +19,7 @@ if (embedded) document.documentElement.classList.add('embed');
 const $ = (id) => document.getElementById(id);
 // tell the on-page panel what is going on, so it can show it while minimized
 function postStatus(text) { if (embedded && window.parent !== window) window.parent.postMessage({ tryon: 'status', text }, '*'); }
+try { const v = chrome.runtime.getManifest().version; const eyebrow = document.querySelector('.eyebrow'); if (eyebrow) eyebrow.textContent = `Virtual fitting room · v${v}`; } catch (error) { /* not running as an extension */ }
 const video = $('userVideo');
 const aiVideo = $('aiVideo');
 const canvas = $('overlayCanvas');

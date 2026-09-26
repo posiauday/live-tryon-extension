@@ -32,8 +32,7 @@
     </style>
     <div class="panel" role="dialog" aria-label="Live Try-On">
       <div class="bar" id="bar">
-        <span class="logo"></span><span class="title">Try-On</span><span class="status" id="status"></span>
-        <button data-act="popout" title="Open in its own window">&#x29C9;</button>
+        <span class="logo"></span><span class="title" id="title">Try-On</span><span class="status" id="status"></span>
         <button data-act="size" title="Bigger / smaller">&#x2922;</button>
         <button data-act="min" title="Minimize">&#x2013;</button>
         <button data-act="close" title="Close">&#x2715;</button>
@@ -44,6 +43,7 @@
   const bar = root.getElementById('bar');
   const statusEl = root.getElementById('status');
   const frame = root.querySelector('iframe');
+  try { root.getElementById('title').title = `Live Try-On v${chrome.runtime.getManifest().version}`; } catch (error) { /* stubbed in tests */ }
   const frameUrl = new URL(chrome.runtime.getURL('camera/camera.html')); frameUrl.searchParams.set('embed', '1');
   frame.src = frameUrl.href;
 
@@ -75,7 +75,6 @@
     if (act === 'min') { minimized = !minimized; layout(); }
     else if (act === 'size') { size = size === 'normal' ? 'large' : 'normal'; minimized = false; layout(); }
     else if (act === 'close') close();
-    else if (act === 'popout') { close(); chrome.runtime.sendMessage({ type: 'open-tryon' }); }
   });
 
   // status text from the try-on iframe ("AI · Live", cost...), so it is visible while minimized

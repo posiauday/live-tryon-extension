@@ -103,3 +103,66 @@ test('installed extension: panel can be embedded in a normal web page (web_acces
     await expect(frame.locator('#uploadBtn')).toBeVisible();
   } finally { await context.close(); }
 });
+
+// ---- the real toolbar-click path (background.js -> chrome.scripting -> content/panel.js) ----
+// Playwright cannot click the toolbar icon, so we call the service worker's handler directly. A click also grants
+// "activeTab"; a temporary copy of the extension with host access to the test page stands in for that grant.
+const os = require('os');
+function extensionCopyWithHost(hostPattern) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tryon-ext-'));
+  for (const d of ['background', 'content', 'camera', 'src']) fs.cpSync(path.join(root, d), path.join(tmp, d), { recursive: true });
+  fs.mkdirSync(path.join(tmp, 'vendor', 'decart'), { recursive: true });
+  fs.cpSync(path.join(root, 'vendor', 'decart'), path.join(tmp, 'vendor', 'decart'), { recursive: true });
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
+  if (hostPattern) manifest.host_permissions.push(hostPattern);
+  fs.writeFileSync(path.join(tmp, 'manifest.json'), JSON.stringify(manifest));
+  return tmp;
+}
+async function launchWithExtension(dir) {
+  const context = await chromium.launchPersistentContext('', {
+    channel: 'chromium', headless: true, viewport: { width: 1280, height: 900 },
+    args: [`--disable-extensions-except=${dir}`, `--load-extension=${dir}`, '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+  });
+  let [worker] = context.serviceWorkers(); if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30000 });
+  // AI mode with no key keeps the local ML models from loading during the test
+  await worker.evaluate(() => chrome.storage.local.set({ mode: 'ai' }));
+  return { context, worker, id: new URL(worker.url()).host };
+}
+const clickToolbar = (worker, urlPattern) => worker.evaluate(async (pattern) => { const [tab] = await chrome.tabs.query({ url: pattern }); await togglePanel(tab); return tab.id; }, urlPattern);
+
+test('toolbar click puts the panel ON the page and opens no new window', async () => {
+  test.setTimeout(90000);
+  const dir = extensionCopyWithHost('http://127.0.0.1/*');
+  const { context, worker, id } = await launchWithExtension(dir);
+  try {
+    const page = await context.newPage();
+    await page.goto(`${base}/tests/fixtures/shop.html`);
+    const pagesBefore = context.pages().length;
+    await clickToolbar(worker, 'http://127.0.0.1/*');
+    await expect(page.locator('#__tryon-panel-host')).toHaveCount(1, { timeout: 10000 });
+    await expect.poll(() => cameraFrame(page) && cameraFrame(page).url(), { timeout: 15000 }).toContain(`chrome-extension://${id}/camera/camera.html?embed=1`);
+    await expect(cameraFrame(page).locator('#uploadBtn')).toBeVisible({ timeout: 20000 });
+    expect(context.pages().length).toBe(pagesBefore); // no extra window or tab
+    // a second click keeps a single panel
+    await clickToolbar(worker, 'http://127.0.0.1/*');
+    await expect(page.locator('#__tryon-panel-host')).toHaveCount(1);
+  } finally { await context.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('when the panel cannot be injected it says so on the icon and does NOT open a window', async () => {
+  test.setTimeout(90000);
+  const dir = extensionCopyWithHost(null); // no host access -> executeScript is refused, like a page without an activeTab grant
+  const { context, worker } = await launchWithExtension(dir);
+  try {
+    const page = await context.newPage();
+    await page.goto(`${base}/tests/fixtures/shop.html`);
+    const pagesBefore = context.pages().length;
+    const tabId = await clickToolbar(worker, 'http://127.0.0.1/*');
+    await page.waitForTimeout(1500);
+    expect(context.pages().length).toBe(pagesBefore);
+    await expect(page.locator('#__tryon-panel-host')).toHaveCount(0);
+    const badge = await worker.evaluate((tabId) => chrome.action.getBadgeText({ tabId }), tabId);
+    const title = await worker.evaluate((tabId) => chrome.action.getTitle({ tabId }), tabId);
+    expect(badge).toBe('!'); expect(title).toContain('Could not open the panel');
+  } finally { await context.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
