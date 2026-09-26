@@ -6,7 +6,8 @@
     "validate": "node validate-project.js",
     "test:smoke": "playwright test tests/extension-smoke.spec.js",
     "test:all": "playwright test",
-    "build:decart": "esbuild build/decart-entry.js --bundle --format=iife --platform=browser --minify --outfile=vendor/decart/decart-sdk.js"
+    "build:decart": "esbuild build/decart-entry.js --bundle --format=iife --platform=browser --minify --outfile=vendor/decart/decart-sdk.js",
+    "check:decart": "node scripts/check-decart.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",

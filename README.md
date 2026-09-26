@@ -16,6 +16,8 @@ Dragging from a shop needs no extra permission when Chrome hands over the image 
 2. In the extension window choose **AI Live**, paste the key (stored only in this browser) and press **Save**.
 3. Drop a garment image (file, or drag straight from a shop page) onto the camera. It connects and dresses you.
 
+To check a key before using it: `DECART_API_KEY=dct_... npm run check:decart` (PowerShell: `$env:DECART_API_KEY="dct_..."; npm run check:decart`). It only creates a token, which does not bill.
+
 Cost: Decart bills about $0.02 per second while connected. Each session is capped (default 2 min) through a short-lived client token and a client-side timer, and Stop or closing the window disconnects immediately.
 
 **Local preview (free)** is the on-device MediaPipe mesh warp described below. It is approximate, but free and offline.
