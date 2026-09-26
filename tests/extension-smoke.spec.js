@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect, chromium } = require('@playwright/test');
 const path = require('path');
 const fs = require('fs');
 
@@ -61,7 +61,28 @@ test('garment controls work without crashing', async ({ page }) => {
   expect(errors.length).toBe(0);
 });
 
-test('canvas renders and FPS counter updates', async ({ page }) => {
+test('canvas renders and FPS counter updates with fake media stream', async () => {
+  const context = await chromium.launchPersistentContext('', {
+    headless: true,
+    args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+  });
+
+  const page = await context.newPage();
+  await page.goto(`file://${path.join(root, 'camera/camera.html')}`);
+
+  // Wait for camera to start and process frames
+  await page.waitForTimeout(2000);
+
+  const fps = await page.locator('#fpsCounter').textContent();
+  expect(parseInt(fps)).toBeGreaterThan(0);
+
+  const status = await page.locator('#statusBadge').textContent();
+  expect(status).toContain('Live');
+
+  await context.close();
+});
+
+test('stop button cleans up streams', async ({ page }) => {
   await page.goto(`file://${path.join(root, 'camera/camera.html')}`);
   await page.evaluate(() => {
     const mockCanvas = document.createElement('canvas');
@@ -72,21 +93,9 @@ test('canvas renders and FPS counter updates', async ({ page }) => {
     video.srcObject = stream;
   });
 
-  await page.waitForTimeout(1500);
-  const fps = await page.locator('#fpsCounter').textContent();
-  expect(parseInt(fps)).toBeGreaterThan(0);
-});
-
-test('stop button cleans up streams', async ({ page }) => {
-  await page.goto(`file://${path.join(root, 'camera/camera.html')}`);
   const streamCount = await page.evaluate(() => {
-    const mockCanvas = document.createElement('canvas');
-    mockCanvas.width = 1280;
-    mockCanvas.height = 720;
-    const stream = mockCanvas.captureStream(30);
     const video = document.getElementById('userVideo');
-    video.srcObject = stream;
-    return stream.getTracks().length;
+    return video.srcObject ? video.srcObject.getTracks().length : 0;
   });
 
   expect(streamCount).toBeGreaterThan(0);
@@ -101,21 +110,27 @@ test('stop button cleans up streams', async ({ page }) => {
   expect(streamAfterStop).toBe(0);
 });
 
-test('error message displays for permission denied', async ({ page }) => {
-  await page.goto(`file://${path.join(root, 'camera/camera.html')}`);
+test('error message displays for permission denied', async () => {
+  const context = await chromium.launchPersistentContext('', {
+    headless: true,
+    args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+  });
 
-  await page.evaluate(() => {
+  const page = await context.newPage();
+
+  // Inject mock BEFORE loading page
+  await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = async () => {
       const error = new DOMException('Permission denied', 'NotAllowedError');
       throw error;
     };
   });
 
-  await page.evaluate(() => {
-    window.location.reload();
-  });
+  await page.goto(`file://${path.join(root, 'camera/camera.html')}`);
+  await page.waitForTimeout(1500);
 
-  await page.waitForTimeout(1000);
   const errorMsg = await page.locator('#errorMessage').textContent();
   expect(errorMsg).toContain('NotAllowedError');
+
+  await context.close();
 });
