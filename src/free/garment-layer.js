@@ -43,26 +43,50 @@ function largestComponent(mask, w, h) {
   return { mask: out, area: bestSize };
 }
 
+// Erosion = dilation of the inverse.
+function erodeMask(mask, w, h, r) {
+  if (r <= 0) return mask;
+  const inv = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) inv[i] = mask[i] ? 0 : 255;
+  const d = dilateMask(inv, w, h, r); const out = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) out[i] = d[i] ? 0 : 255; return out;
+}
+
+// Fill holes: background pixels not connected to the image border become part of the mask.
+function fillHoles(mask, w, h) {
+  const seen = new Uint8Array(w * h), stack = new Int32Array(w * h); let sp = 0;
+  const push = (p) => { if (!mask[p] && !seen[p]) { seen[p] = 1; stack[sp++] = p; } };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); } for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  while (sp) {
+    const p = stack[--sp], x = p % w, y = (p / w) | 0;
+    if (x > 0) push(p - 1); if (x < w - 1) push(p + 1); if (y > 0) push(p - w); if (y < h - 1) push(p + w);
+  }
+  const out = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) out[i] = mask[i] || !seen[i] ? 255 : 0; return out;
+}
+
 // key / person: {data: Uint8ClampedArray RGBA, width, height} (same size; person optional).
-// cats: Uint8Array class ids at catsW x catsH (MediaPipe multiclass selfie: 4 = clothes).
-function garmentAlpha({ key, person = null, cats, catsW, catsH, clothesClass = 4, diffThreshold = 22, dilate = 6, minChangedRatio = 0.25 }) {
+// cats: Uint8Array class ids at catsW x catsH (MediaPipe multiclass selfie: 1 hair, 2 body-skin, 3 face-skin, 4 clothes).
+// The class map is coarse and patchy, so it is used as a hint and for exclusions, not as the outline:
+//   garment = (pixels the try-on model changed) minus (hair/skin/face), limited to the neighbourhood of the "clothes" class,
+//   then closed and hole-filled. If (almost) nothing changed (same colour as your own shirt) it falls back to the clothes class.
+function garmentAlpha({ key, person = null, cats, catsW, catsH, clothesClass = 4, skinClasses = [1, 2, 3], diffThreshold = 22, dilate = 2, near = 12, minChangedRatio = 0.25 }) {
   const w = key.width, h = key.height;
-  let clothes = new Uint8Array(w * h);
+  const clothes = new Uint8Array(w * h), skin = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) {
     const cy = Math.min(catsH - 1, Math.floor((y * catsH) / h));
-    for (let x = 0; x < w; x++) { const cx = Math.min(catsW - 1, Math.floor((x * catsW) / w)); if (cats[cy * catsW + cx] === clothesClass) clothes[y * w + x] = 255; }
+    for (let x = 0; x < w; x++) { const c = cats[cy * catsW + Math.min(catsW - 1, Math.floor((x * catsW) / w))]; if (c === clothesClass) clothes[y * w + x] = 255; else if (skinClasses.includes(c)) skin[y * w + x] = 255; }
   }
   let usedDiff = false, alpha = clothes;
   if (person && person.width === w && person.height === h) {
     const changed = new Uint8Array(w * h);
     for (let i = 0; i < w * h; i++) if (Math.abs(luma(key.data, i * 4) - luma(person.data, i * 4)) > diffThreshold) changed[i] = 255;
     const grown = dilateMask(changed, w, h, dilate);
+    const nearClothes = dilateMask(clothes, w, h, near);
     let clothesArea = 0, hit = 0;
     for (let i = 0; i < w * h; i++) if (clothes[i]) { clothesArea++; if (grown[i]) hit++; }
-    if (clothesArea > 0 && hit / clothesArea >= minChangedRatio) { // enough of the clothing changed: keep only the changed part
-      alpha = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) alpha[i] = clothes[i] && grown[i] ? 255 : 0; usedDiff = true;
+    if (clothesArea > 0 && hit / clothesArea >= minChangedRatio) { // enough of the clothing changed
+      alpha = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) alpha[i] = grown[i] && nearClothes[i] && !skin[i] ? 255 : 0; usedDiff = true;
     }
   }
+  alpha = fillHoles(erodeMask(dilateMask(alpha, w, h, 3), w, h, 3), w, h); // close small gaps, fill enclosed holes
   const { mask, area } = largestComponent(alpha, w, h);
   let minX = w, minY = h, maxX = -1, maxY = -1;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (mask[y * w + x]) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
@@ -87,5 +111,5 @@ function makeGarmentCanvas(keyCanvas, result, feather = 1.6) {
   return out;
 }
 
-if (typeof window !== 'undefined') window.FreeGarment = { garmentAlpha, dilateMask, largestComponent, makeGarmentCanvas };
-if (typeof module !== 'undefined') module.exports = { garmentAlpha, dilateMask, largestComponent };
+if (typeof window !== 'undefined') window.FreeGarment = { garmentAlpha, dilateMask, erodeMask, fillHoles, largestComponent, makeGarmentCanvas };
+if (typeof module !== 'undefined') module.exports = { garmentAlpha, dilateMask, erodeMask, fillHoles, largestComponent };

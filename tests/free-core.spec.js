@@ -2,7 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { mlsSimilarity, controlPairs, makeGrid } = require('../src/free/mls.js');
 const { KeyframeBank, poseVector, poseDistance } = require('../src/free/keyframe-bank.js');
-const { garmentAlpha, largestComponent, dilateMask } = require('../src/free/garment-layer.js');
+const { garmentAlpha, largestComponent, dilateMask, erodeMask, fillHoles } = require('../src/free/garment-layer.js');
 const { MeshRefiner, toGray, bilinear } = require('../src/free/flow-refine.js');
 
 const close = (a, b, eps = 1e-3) => expect(Math.abs(a - b)).toBeLessThan(eps);
@@ -136,6 +136,22 @@ test.describe('garment extraction', () => {
     const m = new Uint8Array(100); m[11] = 255; m[12] = 255; m[88] = 255;
     const { mask, area } = largestComponent(m, 10, 10); expect(area).toBe(2); expect(mask[88]).toBe(0);
     const d = dilateMask(m, 10, 10, 1); expect(d[0]).toBe(255); expect(d[33]).toBe(0);
+  });
+  test('holes in the coarse clothes class do not become holes in the garment; skin and hair are never part of it', () => {
+    // the class map is patchy: a chunk inside the garment is labelled "others" (5); a neck-opening-sized area at the top edge is skin (3)
+    const patchy = cats.slice(); for (let y = 24; y < 34; y++) for (let x = 24; x < 34; x++) patchy[y * W + x] = 5;   // hole inside the garment
+    for (let y = 12; y < 26; y++) for (let x = 24; x < 40; x++) patchy[y * W + x] = 3;                                // neck/skin at the top edge
+    const r = garmentAlpha({ key, person, cats: patchy, catsW: W, catsH: H });
+    expect(r.alpha[30 * W + 28]).toBe(255);                 // enclosed hole filled
+    expect(r.alpha[18 * W + 32]).toBe(0);                   // skin at the edge stays excluded
+    expect(r.alpha[30 * W + 20]).toBe(255);                 // ordinary garment kept
+    expect(r.alpha[55 * W + 30]).toBe(0);                   // trousers still excluded
+  });
+  test('fillHoles and erodeMask', () => {
+    const m = new Uint8Array(100); for (let y = 2; y < 8; y++) for (let x = 2; x < 8; x++) m[y * 10 + x] = 255; m[5 * 10 + 5] = 0; // shape with an enclosed hole
+    expect(fillHoles(m, 10, 10)[5 * 10 + 5]).toBe(255);
+    const sq = new Uint8Array(100); for (let y = 2; y < 8; y++) for (let x = 2; x < 8; x++) sq[y * 10 + x] = 255;
+    const e = erodeMask(sq, 10, 10, 1); expect(e[2 * 10 + 2]).toBe(0); expect(e[3 * 10 + 3]).toBe(255); expect(e[5 * 10 + 5]).toBe(255); // edge pixels removed, interior kept
   });
   test('empty result has no bbox', () => {
     const r = garmentAlpha({ key, person: null, cats: new Uint8Array(W * H), catsW: W, catsH: H });
