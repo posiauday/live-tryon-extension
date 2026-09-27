@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Live Virtual Try-On Pro",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Drag a garment from any shop page onto your live camera and see it on you. Live AI (Decart, paid) or Free (AI keyframes on your own PC + live tracking).",
   "permissions": [
     "tabs",
@@ -19,9 +19,7 @@
     "service_worker": "background/background.js"
   },
   "host_permissions": [
-    "https://*.decart.ai/*"
-  ],
-  "optional_host_permissions": [
+    "https://*.decart.ai/*",
     "<all_urls>"
   ],
   "web_accessible_resources": [

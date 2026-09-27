@@ -23,8 +23,8 @@ WebRTC and the edited video comes back with the garment worn and the fabric movi
 Chrome does not let extensions run on `chrome://` pages or the Web Store. There the icon shows a red **!**; its tooltip
 explains why. The extension never opens a window on its own.
 
-Most shop images are read directly from the page. If a shop's image server blocks that, the AI session card shows an
-**Allow dragging from all sites** button (one click, one Chrome prompt); then drop again.
+Most big shops (H&M, Zara, Amazon...) serve product images without CORS headers, so a web page cannot read them. The extension
+has the "read all sites" permission for exactly this: it fetches the dropped image itself. It is used for nothing else.
 
 Why the drop is caught on the page: Chrome does not deliver drag events from a page into an extension's iframe, so
 `content/panel.js` catches the drop on the page and forwards it to the panel with authenticated extension messaging.

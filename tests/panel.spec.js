@@ -98,6 +98,7 @@ function extensionCopyWithHost(hostPattern) {
   fs.mkdirSync(path.join(tmp, 'vendor', 'decart'), { recursive: true });
   fs.cpSync(path.join(root, 'vendor', 'decart'), path.join(tmp, 'vendor', 'decart'), { recursive: true });
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
+  manifest.host_permissions = manifest.host_permissions.filter((h) => h !== '<all_urls>'); // start from no page access; a real click grants activeTab
   if (hostPattern) manifest.host_permissions.push(hostPattern);
   fs.writeFileSync(path.join(tmp, 'manifest.json'), JSON.stringify(manifest));
   return tmp;
@@ -182,4 +183,33 @@ test('a real mouse drag of a product image from the shop page into the installed
     await expect(frame.locator('#aiVideo')).toBeVisible(); // try-on shown in the same screen
     await expect(page.locator('#__tryon-panel-host .dz')).toBeHidden(); // drop zone is gone again
   } finally { await context.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// Product images on big shops (image.hm.com, static.zara.net...) are served without CORS headers. The page cannot read them,
+// so the drop is handed to the extension, which can (host permission). "Other site" here is a second local server with no CORS headers.
+test('an image from another site that sends no CORS headers (like image.hm.com) can still be dropped', async () => {
+  test.setTimeout(90000);
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  const other = http.createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'image/png' }); res.end(png); }); // note: no Access-Control-Allow-Origin
+  await new Promise((r) => other.listen(0, '127.0.0.1', r));
+  const otherUrl = `http://127.0.0.1:${other.address().port}/assets/hm/3d/68/tee.png?imwidth=1536`;
+  const dir = extensionCopyWithHost('http://127.0.0.1/*');
+  const { context, worker, id } = await launchWithExtension(dir);
+  try {
+    await worker.evaluate(() => chrome.storage.local.set({ decartKey: 'dct_test_key' }));
+    const page = await context.newPage();
+    await page.addInitScript(installFakeSdk);
+    await page.goto(`${base}/tests/fixtures/shop.html`);
+    await page.evaluate((src) => { const img = new Image(); img.id = 'hm'; img.src = src; img.draggable = true; img.style.cssText = 'position:fixed;left:30px;top:420px;width:200px;height:240px;background:#ddd'; document.body.appendChild(img); }, otherUrl);
+    expect(await page.evaluate((u) => fetch(u).then(() => 'readable').catch(() => 'blocked'), otherUrl)).toBe('blocked'); // the page itself cannot read it
+    await clickToolbar(worker, 'http://127.0.0.1/*');
+    await expect.poll(() => cameraFrame(page) && cameraFrame(page).url(), { timeout: 15000 }).toContain(`chrome-extension://${id}/camera/camera.html?embed=1`);
+    const frame = cameraFrame(page);
+    await expect(frame.locator('#statusBadge')).toContainText('Live', { timeout: 20000 });
+    const from = await page.locator('#hm').boundingBox(); const to = await frame.locator('.video-wrap').boundingBox();
+    await page.mouse.move(from.x + 60, from.y + 60); await page.mouse.down(); await page.mouse.move(from.x + 80, from.y + 80, { steps: 4 });
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 }); await page.mouse.up();
+    await expect.poll(() => frame.evaluate(() => window.__calls.map((c) => c[0]).join(',')), { timeout: 20000 }).toBe('token,connect,setImage');
+    expect(await frame.evaluate(() => window.__calls[2].slice(1, 3))).toEqual([true, true]); // a real image Blob reached the AI session
+  } finally { await context.close(); await new Promise((r) => other.close(r)); fs.rmSync(dir, { recursive: true, force: true }); }
 });
