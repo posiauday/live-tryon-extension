@@ -206,8 +206,9 @@ test('installed extension, Free mode: the real pose and segmentation models load
     await page.goto(`chrome-extension://${id}/camera/camera.html`);
     await expect(page.locator('body')).toHaveAttribute('data-mode', 'free');
     await expect(page.locator('#freeModels')).toHaveText('Ready', { timeout: 120000 });
-    await expect(page.locator('#freeBackendState')).toHaveText('Offline');                       // no server in this test
+    await expect(page.locator('#freeBackendState')).toHaveText(/^(Offline|Online · .+)$/, { timeout: 15000 }); // depends on whether a server is running on this PC
     await page.locator('#freeCheckBtn').click();
+    await expect(page.locator('#freeBackendState')).toHaveText(/^(Offline|Online · .+)$/, { timeout: 15000 });
     expect(errors).toEqual([]);
   } finally { await context.close(); }
 });
