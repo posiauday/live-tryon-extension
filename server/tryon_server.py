@@ -58,10 +58,21 @@ class MockEngine:
         p = Image.open(io.BytesIO(person)).convert("RGB")
         g = Image.open(io.BytesIO(garment)).convert("RGBA")
         w, h = p.size
-        box = {"upper": (0.12, 0.30, 0.88, 0.80), "lower": (0.15, 0.55, 0.85, 1.0), "overall": (0.12, 0.30, 0.88, 1.0)}.get(category, (0.12, 0.30, 0.88, 0.80))
+        # product photos usually sit on a white background: make near-white pixels transparent, then crop to the garment
+        px = g.load()
+        for y in range(g.height):
+            for x in range(g.width):
+                r, gr, b, a = px[x, y]
+                if a > 0 and min(r, gr, b) > 235:
+                    px[x, y] = (r, gr, b, 0)
+        bbox = g.getchannel("A").getbbox()
+        if bbox:
+            g = g.crop(bbox)
+        box = {"upper": (0.10, 0.28, 0.90, 0.80), "lower": (0.15, 0.55, 0.85, 1.0), "overall": (0.10, 0.28, 0.90, 1.0)}.get(category, (0.10, 0.28, 0.90, 0.80))
         x0, y0, x1, y1 = int(w * box[0]), int(h * box[1]), int(w * box[2]), int(h * box[3])
-        g = g.resize((x1 - x0, y1 - y0))
-        p.paste(g, (x0, y0), g)
+        scale = min((x1 - x0) / g.width, (y1 - y0) / g.height)  # keep the garment's proportions
+        g = g.resize((max(1, int(g.width * scale)), max(1, int(g.height * scale))))
+        p.paste(g, (x0 + ((x1 - x0) - g.width) // 2, y0), g)
         out = io.BytesIO()
         p.save(out, format="PNG")
         return out.getvalue()
