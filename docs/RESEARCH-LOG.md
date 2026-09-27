@@ -135,33 +135,53 @@ over the garment). Noted here because it is the direct alternative to 4.4/4.5's 
 gives 33 sparse 2D landmarks at real browser frame rates (measured ~20-30 FPS in this project), but no dense
 surface correspondence, which is the accuracy ceiling the current MLS warp is up against.
 
-## 5. Where the investigation is right now (open, blocked on the user)
+## 5. ROMP / SMPL body-mesh path: tried, then reverted
 
-Chosen path (per the user's explicit choice of "option 2" over patching the existing warp further): build
-real-time monocular 3D body-mesh fitting to drive garment placement, instead of 8 sparse landmarks.
+Chosen briefly (the user's "option 2"): drive garment placement with real-time monocular 3D body-mesh fitting
+instead of 8 sparse landmarks.
 
-- **Candidate found and installed**: [ROMP](https://github.com/Arthur151/ROMP) (`simple-romp` on PyPI;
-  ICCV 2021, plus its successors BEV/CVPR22 and TRACE/CVPR23 in the same repo). Actively maintained, ONNX
-  export available, built-in webcam demo with temporal tracking. Its README/community claims **30+ FPS on
-  modern GPUs**, 5-10 FPS on CPU — **not yet independently verified by me**, which is the whole point of the
-  current step: measure it directly rather than trust the number.
-- **Installed on the user's machine**: `simple-romp` (via pip, with Cython + `--no-build-isolation`), its main
-  model weights (`ROMP.pkl`, downloaded directly from the GitHub release), and its freely-downloadable auxiliary
-  data (`smpl_model_data.zip`: J-regressors, kid template).
-- **Blocked on**: ROMP requires Meta/MPI's **SMPL body model file** (`SMPL_NEUTRAL.pkl`), which is gated behind
-  free registration and a click-through non-commercial research license at
-  [smpl.is.tue.mpg.de](https://smpl.is.tue.mpg.de/). This is a real, standard requirement of the SMPL license
-  (every SMPL-based project — ROMP, HMR2.0, Pix2Surf's rendering step — needs the same file the same way), not
-  a workaround-able technical limit, and creating accounts is something the user needs to do, not me.
-- **Immediate next step once the file is provided**: run `romp.prepare_smpl`, then a direct, repeated-inference
-  benchmark script (already written) on the user's real webcam photo, on the RTX 2070 Super, to get a genuine
-  measured FPS number before any further integration work.
-- **Not yet investigated at all**: whether ROMP's pose/shape output is accurate and stable enough (per-frame
-  jitter, failure on partial-body/close-up frames) to actually hang a garment mesh on — speed is necessary but
-  not sufficient; accuracy is the next question after speed.
-- **Also not yet investigated**: how a Pix2Surf-style texture-transfer step would be driven by ROMP's live SMPL
-  output in practice (this is genuine integration engineering, not just wiring — the two projects were not built
-  to talk to each other).
+- Candidate: [ROMP](https://github.com/Arthur151/ROMP) (`simple-romp`, ICCV 2021; BEV/CVPR22 and TRACE/CVPR23 in
+  the same repo). README/community claim 30+ FPS on modern GPUs. **Never measured**: installation got as far as the
+  package and the main `ROMP.pkl` weights, then stopped.
+- Blocker: ROMP (like HMR2.0 and Pix2Surf's rendering step) needs the **SMPL body model file**
+  (`SMPL_NEUTRAL.pkl`) from the Max Planck Institute, which is only distributed after registering an account and
+  accepting a non-commercial research license at [smpl.is.tue.mpg.de](https://smpl.is.tue.mpg.de/).
+- **Reverted at the user's request (2026-09-27)**: `simple-romp`, `lapx`, `Cython` uninstalled from the
+  CatVTON venv, the `wget` package ROMP auto-installed into the global Python removed, and `~/.romp` (117 MB of
+  weights and data) deleted. Nothing from this attempt was ever committed to the repo. The CatVTON environment is
+  unaffected.
+- Consequence: every SMPL-based upgrade (ROMP, HMR2.0, Pix2Surf) inherits the same license gate and the same
+  non-commercial restriction. Any future dense-body approach should prefer a body model without that gate.
+
+## 5b. Code review of the CatVTON integration (2026-09-27)
+
+Prompted by the user's suspicion that CatVTON was "not implemented successfully". Verdict: the model **is** loaded
+and run correctly (it produces a real try-on photo, see 3.2), but the integration around it has real defects that
+explain the poor live result:
+
+1. **No repaint outside the mask** (`server/tryon_server.py`): CatVTON ships `utils.repaint_result` (app.py
+   `--repaint`) to paste the untouched person back outside the garment mask; the server skips it, so the whole
+   frame drifts through the VAE (recoloured face, smeared background). The client's cut-out keys on "what changed",
+   so it degrades to the coarse clothes class: the jagged collar-only sliver seen in the real run.
+2. **Transparent garments become black**: `convert("RGB")` drops alpha without compositing on white.
+3. **The server discards CatVTON's exact AutoMasker mask**, and the client re-guesses the garment from a 256 px
+   selfie segmentation + a pixel diff. Returning the mask would remove both heuristics.
+4. **Health check (2.5 s) falsely reports "offline" while the server is busy** (GIL held by generation).
+5. **Cancelled keyframes keep the GPU busy ~80 s** (no server-side cancel), so a new garment can wait ~160 s.
+6. **No fixed seed**, so keyframes in the pose bank show different garments and pop when cross-fading.
+7. steps/seed/guidance not validated before GPU work; result resize stretches instead of undoing the crop;
+   UI still says 15-45 s (measured 77-90 s at 50 steps); duplicated guidance defaults.
+
+## 5c. Mobile-VTON (second opinion, supplied by the user)
+
+A separate review compared Mobile-VTON with CatVTON. Summary of its conclusions: Mobile-VTON's paper reports about
+80 s per 1024x768 image on a mobile NPU with an INT8 deployment (not live, no RTX 2070 Super timing); lower published
+memory (2.84 GB vs 5.80 GB in its CatVTON comparison); mixed quality vs CatVTON (better LPIPS, worse SSIM/CLIP-I on
+the authors' in-the-wild set); released inference defaults to BF16 with multi-process batches, which Turing (RTX 20,
+compute capability 7.5) lacks natively, and an FP16 path that is not shown to be validated; authors note weakness on
+garment text/logos. Recommendation adopted here: keep CatVTON as the baseline; Mobile-VTON is at most a
+side-by-side keyframe experiment (same photo + garment, record peak VRAM, time, colour/detail fidelity, cut-out
+cleanliness), and neither model makes the result live on its own.
 
 ## 6. Honest assessment of the "genuinely new" ask
 
@@ -171,9 +191,8 @@ experiments, most of which fail before one works, and is not something producibl
 session. What this investigation did instead, and what it is worth: found that the technically correct
 architectural upgrade (dense body correspondence instead of sparse landmarks) is a known, cited idea in the
 literature (Pix2Surf, 2020), verified which of the candidate implementations of it are actually real and
-downloadable versus paper-only claims (DensePose-lite: paper-only, dead end; ROMP: real, downloaded, pending one
-license file; Pix2Surf: real, downloaded conceptually but needs the same missing SMPL piece plus a live-fitting
-component), and ruled out three other model families with concrete, sourced numbers rather than assumptions.
+downloadable versus paper-only claims (DensePose-lite: paper-only, dead end; ROMP: real but gated behind the SMPL
+license, reverted; Pix2Surf: real but needs the same SMPL file plus a live-fitting component), and ruled out three other model families with concrete, sourced numbers rather than assumptions.
 That is the honest scope of "research" performed here: verification and synthesis of real, cited work, not
 invention of new fundamental methods.
 
@@ -187,7 +206,8 @@ invention of new fundamental methods.
 - "Making DensePose fast and light": https://arxiv.org/abs/2006.15190 (WACV 2021)
 - Pix2Surf (clothing-to-3D-human texture transfer): https://github.com/JiahuiLei/Pix2Surf ,
   Windows fork: https://github.com/minar09/pix2surf_windows (CVPR 2020)
-- ROMP / BEV / TRACE: https://github.com/Arthur151/ROMP (ICCV21 / CVPR22 / CVPR23)
+- ROMP / BEV / TRACE: https://github.com/Arthur151/ROMP (ICCV21 / CVPR22 / CVPR23) (tried and reverted, section 5)
+- CatVTON repaint helper: `repaint_result` in https://github.com/Zheng-Chong/CatVTON/blob/main/utils.py
 - SMPL body model (registration required): https://smpl.is.tue.mpg.de/
 - Tstars-Tryon 1.0: https://arxiv.org/abs/2604.19748
 - MC-VTON: https://arxiv.org/abs/2501.03630
