@@ -7,8 +7,8 @@
 
 Engines
     mock      no AI: pastes a scaled copy of the garment on the torso. For checking the wiring without a GPU.
-    catvton   CatVTON (https://github.com/Zheng-Chong/CatVTON), fp16, fits an 8 GB GPU.  UNTESTED here until it is run on
-              real weights; see server/README.md.
+    catvton   CatVTON (https://github.com/Zheng-Chong/CatVTON), fp16, fits an 8 GB GPU (about 45 s per photo on an RTX 2070 Super).
+              Safety: the garment you drop and the photo it generates are both checked by an image-safety classifier.
 
 Only the standard library is required for the mock engine (Pillow optional). Binds to 127.0.0.1 by default: your photos never
 leave the machine.
@@ -23,6 +23,10 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MAX_BODY = 60 * 1024 * 1024
+
+
+class SafetyFiltered(Exception):
+    """The AI safety filter rejected the generated photo."""
 GPU_LOCK = threading.Lock()  # one generation at a time
 
 
@@ -51,7 +55,7 @@ class MockEngine:
     def info(self):
         return {"pillow": self.pil}
 
-    def generate(self, person, garment, category, steps, seed):
+    def generate(self, person, garment, category, steps, seed, guidance_scale=2.5):
         if not self.pil:  # no Pillow: hand the person photo back unchanged
             return person
         from PIL import Image
@@ -78,6 +82,36 @@ class MockEngine:
         return out.getvalue()
 
 
+class SafetyClassifier:
+    """Image-safety classifier (Falconsai/nsfw_image_detection, Apache-2.0, ViT). Replaces CatVTON's stock CLIP filter,
+    which wrongly blocks close-up portraits. Applied to the garment image that comes in and to the photo that goes out."""
+
+    REPO = "Falconsai/nsfw_image_detection"
+
+    def __init__(self, device="cuda", threshold=0.5):
+        import torch
+        from huggingface_hub import snapshot_download
+        from transformers import AutoModelForImageClassification, ViTImageProcessor
+        path = snapshot_download(self.REPO, allow_patterns=["config.json", "preprocessor_config.json", "model.safetensors"])
+        self.torch, self.device, self.threshold = torch, device, threshold
+        self.processor = ViTImageProcessor.from_pretrained(path)
+        self.model = AutoModelForImageClassification.from_pretrained(path).to(device).eval()
+        self.nsfw_index = next(i for i, name in self.model.config.id2label.items() if str(name).lower() == "nsfw")
+
+    def nsfw_score(self, image):
+        torch = self.torch
+        with torch.no_grad():
+            inputs = self.processor(images=image.convert("RGB"), return_tensors="pt").to(self.device)
+            probs = torch.softmax(self.model(**inputs).logits, dim=-1)[0]
+        return float(probs[int(self.nsfw_index)])
+
+    def check(self, image, what):
+        score = self.nsfw_score(image)
+        print("[safety] %s: nsfw score %.3f (blocked at %.2f)" % (what, score, self.threshold), flush=True)
+        if score >= self.threshold:
+            raise SafetyFiltered("The safety check blocked the %s. Try a different image, or sit back so your shoulders and chest are in view." % what)
+
+
 class CatVTONEngine:
     """CatVTON on the local GPU. Mirrors CatVTON's own app.py (model loading, AutoMasker, pipeline call)."""
 
@@ -99,30 +133,34 @@ class CatVTONEngine:
         self.pipeline = CatVTONPipeline(
             base_ckpt=base_model, attn_ckpt=repo_path, attn_ckpt_version="mix",
             weight_dtype=init_weight_dtype(precision), use_tf32=True, device="cuda",
+            skip_safety_check=True,  # replaced by SafetyClassifier below (not removed)
         )
         self.mask_processor = VaeImageProcessor(vae_scale_factor=8, do_normalize=False, do_binarize=True, do_convert_grayscale=True)
         self.automasker = AutoMasker(densepose_ckpt=os.path.join(repo_path, "DensePose"), schp_ckpt=os.path.join(repo_path, "SCHP"), device="cuda")
+        self.safety = SafetyClassifier()  # loads a small (343 MB) classifier; see the class docstring
 
     def info(self):
         return {"cuda": self.torch.cuda.get_device_name(0), "vram_gb": round(self.torch.cuda.get_device_properties(0).total_memory / 1e9, 1)}
 
-    def generate(self, person, garment, category, steps, seed):
+    def generate(self, person, garment, category, steps, seed, guidance_scale=5.0):
         from PIL import Image
         torch = self.torch
         p = Image.open(io.BytesIO(person)).convert("RGB")
         g = Image.open(io.BytesIO(garment)).convert("RGB")
         orig_size = p.size
+        self.safety.check(g, "garment image")
         p = self.resize_and_crop(p, (self.width, self.height))
         g = self.resize_and_padding(g, (self.width, self.height))
         mask = self.automasker(p, {"upper": "upper", "lower": "lower", "overall": "overall"}.get(category, "upper"))["mask"]
         mask = self.mask_processor.blur(mask, blur_factor=9)
         generator = torch.Generator(device="cuda").manual_seed(int(seed)) if seed is not None and int(seed) != -1 else None
-        result = self.pipeline(image=p, condition_image=g, mask=mask, num_inference_steps=int(steps or 30), guidance_scale=2.5, generator=generator)[0]
+        result = self.pipeline(image=p, condition_image=g, mask=mask, num_inference_steps=int(steps or 50), guidance_scale=guidance_scale, generator=generator)[0]
+        torch.cuda.empty_cache()
+        self.safety.check(result, "generated photo")
         if result.size != orig_size:
             result = result.resize(orig_size)
         out = io.BytesIO()
         result.save(out, format="PNG")
-        torch.cuda.empty_cache()
         return out.getvalue()
 
 
@@ -177,7 +215,9 @@ def make_handler(engine, allow_origin):
             t0 = time.time()
             try:
                 with GPU_LOCK:
-                    png = engine.generate(person, garment, category, req.get("steps"), req.get("seed"))
+                    png = engine.generate(person, garment, category, req.get("steps"), req.get("seed"), req.get("guidance_scale", 5.0))
+            except SafetyFiltered as error:
+                return self._json(422, {"error": str(error), "code": "safety_filter"})
             except Exception as error:  # e.g. CUDA out of memory
                 msg = str(error)
                 if "out of memory" in msg.lower():

@@ -52,7 +52,7 @@
 
   function onEvent(type, data) {
     if (type === 'countdown') {
-      if (data.n === null) overlay('', data.hint); else if (data.n > 0) overlay(String(data.n), 'Hold still and face the camera'); else overlay('', 'Capturing...');
+      if (data.n === null) overlay('', data.hint); else if (data.n > 0) overlay(String(data.n), 'Face the camera and hold still. Keep your head, shoulders and chest in view.'); else overlay('', 'Capturing...');
     } else if (type === 'generating') {
       if (data.reason === 'first') {
         clearInterval(S.genTimer); const t0 = performance.now();
